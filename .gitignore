@@ -1,0 +1,48 @@
+# --- Dependencies ---
+node_modules/
+.pnp
+.pnp.js
+
+# --- Build Outputs ---
+dist/
+build/
+*.tsbuildinfo
+
+# --- Environment Variables ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --- IDE & Editors ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- Logs ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- SQLite & Local DB ---
+# Keep the schema but ignore actual local DB files if they contain user data
+*.db
+*.sqlite
+*.sqlite3
+# If you want to keep the seed database, use: !public/data/naming.db
+
+# --- OS Files ---
+.DS_Store
+Thumbs.db
+
+# --- Vite / Testing ---
+/coverage
+/.next/
+/out/
