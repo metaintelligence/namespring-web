@@ -6,6 +6,7 @@ import NamingReport from './NamingReport';
 import DevDbViewer from './DevDbViewer';
 import DevHanjaDbViewer from './DevHanjaDbViewer';
 import DevNameStatDbViewer from './DevNameStatDbViewer';
+import SplashScreen from './SplashScreen';
 
 function App() {
   const tool = new URLSearchParams(window.location.search).get("tool");
@@ -24,6 +25,9 @@ function App() {
   }
 
   const [isDbReady, setIsDbReady] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const [splashVisible, setSplashVisible] = useState(false);
+  const [minSplashElapsed, setMinSplashElapsed] = useState(false);
   const hanjaRepo = useMemo(() => new HanjaRepository(), []);
 
   const [analysisResult, setAnalysisResult] = useState(null);
@@ -33,11 +37,35 @@ function App() {
     hanjaRepo.init().then(() => setIsDbReady(true));
   }, [hanjaRepo]);
 
+  useEffect(() => {
+    if (!showSplash) return;
+    const fadeInTimer = window.setTimeout(() => setSplashVisible(true), 20);
+    const minTimer = window.setTimeout(() => setMinSplashElapsed(true), 1000);
+    return () => {
+      window.clearTimeout(fadeInTimer);
+      window.clearTimeout(minTimer);
+    };
+  }, [showSplash]);
+
+  useEffect(() => {
+    if (!showSplash || !isDbReady || !minSplashElapsed) return;
+    const fadeOutTimer = window.setTimeout(() => setSplashVisible(false), 100);
+    const unmountTimer = window.setTimeout(() => setShowSplash(false), 420);
+    return () => {
+      window.clearTimeout(fadeOutTimer);
+      window.clearTimeout(unmountTimer);
+    };
+  }, [showSplash, isDbReady, minSplashElapsed]);
+
   const handleAnalyze = (userInfo) => {
     const engine = new SeedTs();
     const result = engine.analyze(userInfo);
     setAnalysisResult(result);
   };
+
+  if (showSplash) {
+    return <SplashScreen visible={splashVisible} />;
+  }
 
   if (!isDbReady) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 font-sans">
