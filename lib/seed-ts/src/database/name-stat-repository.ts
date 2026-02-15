@@ -11,6 +11,14 @@ export interface NameStatEntry {
   readonly raw_entry: Record<string, unknown>;
 }
 
+export interface NameGenderRatioEntry {
+  readonly maleBirths: number;
+  readonly femaleBirths: number;
+  readonly totalBirths: number;
+  readonly maleRatio: number;
+  readonly femaleRatio: number;
+}
+
 type ShardKey =
   | 'ㄱ' | 'ㄴ' | 'ㄷ' | 'ㄹ' | 'ㅁ' | 'ㅂ' | 'ㅅ'
   | 'ㅇ' | 'ㅈ' | 'ㅊ' | 'ㅋ' | 'ㅌ' | 'ㅍ' | 'ㅎ';
@@ -169,7 +177,16 @@ export class NameStatRepository {
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
 
       const out: Record<string, Record<string, number>> = {};
+      const flatBucket: Record<string, number> = {};
       for (const [key, bucket] of Object.entries(parsed as Record<string, unknown>)) {
+        // Handle flat map shape: { "2015": 1, "2016": 2 }
+        const flatYear = Number(key);
+        const flatNum = Number(bucket);
+        if (!Number.isNaN(flatYear) && !Number.isNaN(flatNum)) {
+          flatBucket[key] = flatNum;
+          continue;
+        }
+
         if (!bucket || typeof bucket !== 'object' || Array.isArray(bucket)) continue;
         out[key] = {};
         for (const [year, num] of Object.entries(bucket as Record<string, unknown>)) {
@@ -177,10 +194,43 @@ export class NameStatRepository {
           if (!Number.isNaN(n)) out[key][year] = n;
         }
       }
+
+      if (Object.keys(flatBucket).length) {
+        const existing = out['전체'] || {};
+        out['전체'] = { ...existing, ...flatBucket };
+      }
+
       return out;
     } catch {
       return {};
     }
+  }
+
+  public async findGenderRatioByName(name: string): Promise<NameGenderRatioEntry | null> {
+    const stat = await this.findByName(name);
+    if (!stat) return null;
+
+    const maleBirths = this.sumBirthsByBucket(stat.yearly_birth, ['남자', '남']);
+    const femaleBirths = this.sumBirthsByBucket(stat.yearly_birth, ['여자', '여']);
+    const totalBirths = maleBirths + femaleBirths;
+
+    if (totalBirths <= 0) {
+      return {
+        maleBirths: 0,
+        femaleBirths: 0,
+        totalBirths: 0,
+        maleRatio: 0,
+        femaleRatio: 0,
+      };
+    }
+
+    return {
+      maleBirths,
+      femaleBirths,
+      totalBirths,
+      maleRatio: maleBirths / totalBirths,
+      femaleRatio: femaleBirths / totalBirths,
+    };
   }
 
   private parseJsonObject(value: unknown): Record<string, unknown> {
@@ -194,5 +244,21 @@ export class NameStatRepository {
     } catch {
       return {};
     }
+  }
+
+  private sumBirthsByBucket(
+    yearlyBirth: Record<string, Record<string, number>>,
+    bucketNames: string[]
+  ): number {
+    let total = 0;
+    for (const bucketName of bucketNames) {
+      const bucket = yearlyBirth?.[bucketName];
+      if (!bucket || typeof bucket !== 'object') continue;
+      for (const value of Object.values(bucket)) {
+        const n = Number(value);
+        if (!Number.isNaN(n)) total += n;
+      }
+    }
+    return total;
   }
 }

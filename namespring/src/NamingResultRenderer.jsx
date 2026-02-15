@@ -8,7 +8,7 @@ import elementMetal from './assets/images/element_metal.svg';
 import elementWater from './assets/images/element_water.svg';
 
 // TEMP DEV FLAG: set to false (or remove) after scene tuning is done.
-const DEV_FORCE_ALL_COUNTS_TO_FIVE = true;
+const DEV_FORCE_ALL_COUNTS_TO_FIVE = false;
 
 function normalizeElementName(value) {
   const normalized = String(value ?? '').trim().toLowerCase();
