@@ -14,8 +14,8 @@ export class HanjaCalculator extends NameCalculator {
   readonly id = 'hanja';
   private readonly entries: HanjaEntry[];
   private energies: Energy[] = [];
-  private elementScore = 0;
-  private polarityScore = 0;
+  public elementScore = 0;
+  public polarityScore = 0;
 
   constructor(surnameEntries: HanjaEntry[], givenNameEntries: HanjaEntry[]) {
     super();
@@ -59,6 +59,10 @@ export class HanjaCalculator extends NameCalculator {
         elementScore: es,
       },
     };
+  }
+
+  getScore(): number {
+    return this.getAnalysis().score;
   }
 
   getNameBlocks(): ReadonlyArray<{ readonly entry: HanjaEntry; energy: Energy | null }> {

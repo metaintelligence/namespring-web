@@ -3,6 +3,7 @@ import { Element } from '../model/element.js';
 import { Polarity } from '../model/polarity.js';
 import { Energy } from '../model/energy.js';
 import type { HanjaEntry } from '../database/hanja-repository.js';
+import { FourframeRepository, type FourframeMeaningEntry } from '../database/fourframe-repository.js';
 import type { FourFrameAnalysis } from '../model/types.js';
 import {
   type ElementKey, sum, adjustTo81,
@@ -17,11 +18,15 @@ export interface Frame {
   readonly type: 'won' | 'hyung' | 'lee' | 'jung';
   readonly strokeSum: number;
   energy: Energy | null;
+  entry: FourframeMeaningEntry | null;
 }
 
 export class FrameCalculator extends NameCalculator {
   readonly id = 'frame';
   public readonly frames: Frame[];
+
+  private static repo: FourframeRepository | null = null;
+  private static repoInitPromise: Promise<void> | null = null;
 
   constructor(surnameEntries: HanjaEntry[], givenNameEntries: HanjaEntry[]) {
     super();
@@ -37,11 +42,13 @@ export class FrameCalculator extends NameCalculator {
     const gT = sum(givenNameStrokes);
 
     this.frames = [
-      { type: 'won', strokeSum: sum(padded), energy: null },
-      { type: 'hyung', strokeSum: adjustTo81(sT + guSum), energy: null },
-      { type: 'lee', strokeSum: adjustTo81(sT + glSum), energy: null },
-      { type: 'jung', strokeSum: adjustTo81(sT + gT), energy: null },
+      { type: 'won', strokeSum: sum(padded), energy: null, entry: null },
+      { type: 'hyung', strokeSum: adjustTo81(sT + guSum), energy: null, entry: null },
+      { type: 'lee', strokeSum: adjustTo81(sT + glSum), energy: null, entry: null },
+      { type: 'jung', strokeSum: adjustTo81(sT + gT), energy: null, entry: null },
     ];
+
+    void this.loadEntries();
   }
 
   visit(ctx: EvalContext): void {
@@ -75,6 +82,56 @@ export class FrameCalculator extends NameCalculator {
       },
     };
   }
+
+  /* ── UI adapter methods (consumed by NamingReport.jsx) ── */
+
+  getFrames(): Frame[] {
+    return this.frames;
+  }
+
+  getScore(): number {
+    return this.getAnalysis().score;
+  }
+
+  get luckScore(): number {
+    let total = 0;
+    let count = 0;
+    for (const f of this.frames) {
+      const parsed = Number.parseInt(f.entry?.lucky_level ?? '0', 10);
+      total += Number.isNaN(parsed) ? 0 : parsed;
+      count += 1;
+    }
+    return count > 0 ? (total / count) * 10 : 0;
+  }
+
+  get polarityScore(): number {
+    return this.getAnalysis().polarityScore;
+  }
+
+  get elementScore(): number {
+    return this.getAnalysis().elementScore;
+  }
+
+  /* ── async entry loading (fire-and-forget from constructor) ── */
+
+  private async loadEntries(): Promise<void> {
+    try {
+      if (!FrameCalculator.repo) {
+        FrameCalculator.repo = new FourframeRepository();
+      }
+      if (!FrameCalculator.repoInitPromise) {
+        FrameCalculator.repoInitPromise = FrameCalculator.repo.init();
+      }
+      await FrameCalculator.repoInitPromise;
+      for (const f of this.frames) {
+        f.entry = await FrameCalculator.repo.findByNumber(f.strokeSum);
+      }
+    } catch {
+      // Entry loading is best-effort; UI shows fallback text when entry is null
+    }
+  }
+
+  /* ── scoring internals ── */
 
   private scoreFourframeLuck(ctx: EvalContext): void {
     const [won, hyung, lee, jung] = this.frames;

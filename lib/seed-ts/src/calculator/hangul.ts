@@ -34,8 +34,8 @@ export class HangulCalculator extends NameCalculator {
   private readonly blocks: { readonly entry: HanjaEntry; energy: Energy | null }[];
   private elemArrangement: ElementKey[] = [];
   private polArrangement: PolarityValue[] = [];
-  private elScore = 0;
-  private polScore = 0;
+  public elementScore = 0;
+  public polarityScore = 0;
 
   constructor(surnameEntries: HanjaEntry[], givenNameEntries: HanjaEntry[]) {
     super();
@@ -60,12 +60,12 @@ export class HangulCalculator extends NameCalculator {
       checkElementSangSaeng(this.elemArrangement, ctx.surnameLength) &&
       !countDominant(distribution) && adjacencyScore >= threshold && elemScore >= 70;
 
-    this.elScore = elemScore;
+    this.elementScore = elemScore;
     this.putInsight(ctx, 'HANGUL_ELEMENT', elemScore, elemPassed,
       this.elemArrangement.join('-'), { distribution, adjacencyScore, balanceScore: balance });
 
     const polResult = computePolarityResult(this.polArrangement, ctx.surnameLength);
-    this.polScore = polResult.score;
+    this.polarityScore = polResult.score;
     this.putInsight(ctx, 'HANGUL_POLARITY', polResult.score, polResult.isPassed,
       this.polArrangement.join(''), { arrangementList: this.polArrangement });
   }
@@ -78,7 +78,7 @@ export class HangulCalculator extends NameCalculator {
 
   getAnalysis(): AnalysisDetail<HangulAnalysis> {
     const energies = this.blocks.map(b => b.energy).filter((e): e is Energy => e !== null);
-    const ps = this.polScore, es = this.elScore;
+    const ps = this.polarityScore, es = this.elementScore;
     return {
       type: this.id,
       score: Energy.getPolarityScore(energies) * 0.5 + Energy.getElementScore(energies) * 0.5,
@@ -94,6 +94,10 @@ export class HangulCalculator extends NameCalculator {
         elementScore: es,
       },
     };
+  }
+
+  getScore(): number {
+    return this.getAnalysis().score;
   }
 
   getNameBlocks(): ReadonlyArray<{ readonly entry: HanjaEntry; energy: Energy | null }> {
