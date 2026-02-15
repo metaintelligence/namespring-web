@@ -1,8 +1,8 @@
-// Engine
+// Engine (main entry points)
 export { SeedEngine } from './engine.js';
 export { SeedTs } from './seed.js';
 
-// Types (stable API contract)
+// Stable API types
 export type {
   SeedRequest, SeedResponse, SeedCandidate, SeedOptions,
   BirthInfo, NameCharInput, ScoreWeights,
@@ -21,7 +21,7 @@ export type { FourframeMeaningEntry } from './database/fourframe-repository.js';
 export { NameStatRepository } from './database/name-stat-repository.js';
 export type { NameStatEntry } from './database/name-stat-repository.js';
 
-// Calculator (advanced usage)
+// Calculator (advanced usage — keep existing exports)
 export { EnergyCalculator } from './calculator/energy-calculator.js';
 export type { AnalysisDetail } from './calculator/energy-calculator.js';
 export { FourFrameCalculator, Frame } from './calculator/frame-calculator.js';
@@ -30,22 +30,19 @@ export { HanjaCalculator, HanjaNameBlock } from './calculator/hanja-calculator.j
 export { SajuCalculator } from './calculator/saju-calculator.js';
 export type { SajuContext } from './calculator/saju-calculator.js';
 
-// Calculator graph (DAG execution)
+// Calculator graph
 export { executeCalculatorNode, flattenSignals } from './calculator/calculator-graph.js';
 export type { CalculatorNode, CalculatorSignal, CalculatorPacket } from './calculator/calculator-graph.js';
 
-// Evaluator (signal-based adaptive scoring)
-export { NameEvaluator } from './evaluator/name-evaluator.js';
-export type { EvaluationResult } from './evaluator/name-evaluator.js';
-export type { EvalFrame, FrameInsight } from './evaluator/evaluator-context.js';
+// Evaluator (advanced usage — minimal surface from new structure)
+export { NameEvaluator } from './evaluator/evaluator.js';
+export type { EvaluationResult, EvalFrame, FrameInsight } from './evaluator/evaluator.js';
 export type { ElementKey } from './evaluator/element-cycle.js';
-export type { SajuNameScoreResult, SajuNameScoreBreakdown } from './evaluator/saju-name-scorer.js';
-export type { SajuOutputSummary } from './evaluator/strength-scorer.js';
-export type { SajuYongshinSummary } from './evaluator/yongshin-scorer.js';
+export type { SajuNameScoreResult, SajuOutputSummary } from './evaluator/saju-scorer.js';
 
-// Search (name generation)
-export { FourFrameOptimizer } from './search/four-frame-optimizer.js';
-export { MinHeap } from './search/heap.js';
+// Search
+export { FourFrameOptimizer } from './evaluator/search.js';
+export { MinHeap } from './evaluator/search.js';
 
 // Model
 export { Element } from './model/element.js';

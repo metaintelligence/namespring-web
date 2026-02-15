@@ -2,10 +2,10 @@ import type { EnergyCalculator } from './calculator/energy-calculator.js';
 import type { HanjaEntry } from './database/hanja-repository.js';
 
 // ============================================================
-// Stable API Contract — Immutable Input/Output types
+// Public API -- Input types (immutable contract)
 // ============================================================
 
-/** Birth date/time info — encompasses saju-ts BirthInput */
+/** Birth date/time info -- encompasses saju-ts BirthInput. */
 export interface BirthInfo {
   readonly year: number;
   readonly month: number;       // 1-12
@@ -13,23 +13,23 @@ export interface BirthInfo {
   readonly hour: number;        // 0-23
   readonly minute: number;      // 0-59
   readonly gender: 'male' | 'female';
-  readonly isLunar?: boolean;   // true = lunar→solar conversion
+  readonly isLunar?: boolean;   // true = lunar-to-solar conversion
   readonly timezone?: string;   // default: 'Asia/Seoul'
   readonly latitude?: number;   // default: 37.5665 (Seoul)
   readonly longitude?: number;  // default: 126.978 (Seoul)
 }
 
-/** Single character input */
+/** Single character input. */
 export interface NameCharInput {
   readonly hangul: string;
   readonly hanja?: string;
 }
 
-/** Main API input */
+/** Main API input. */
 export interface SeedRequest {
   readonly birth: BirthInfo;
   readonly surname: NameCharInput[];       // 1-2 chars, hanja required
-  readonly givenName?: NameCharInput[];    // 0~N chars, hanja optional
+  readonly givenName?: NameCharInput[];    // 0-N chars, hanja optional
   readonly givenNameLength?: number;       // desired length for generation (default: 2)
   readonly mode?: 'auto' | 'evaluate' | 'recommend' | 'all';
   readonly options?: SeedOptions;
@@ -50,10 +50,127 @@ export interface ScoreWeights {
 }
 
 // ============================================================
-// Stable API Output types
+// Public API -- Output types (immutable contract)
 // ============================================================
 
-/** Saju summary extracted from saju-ts SajuAnalysis */
+/** Main API output. */
+export interface SeedResponse {
+  readonly request: SeedRequest;
+  readonly mode: 'evaluate' | 'recommend' | 'all';
+  readonly saju: SajuSummary;
+  readonly candidates: SeedCandidate[];
+  readonly totalCount: number;
+  readonly meta: {
+    readonly version: string;
+    readonly timestamp: string;
+  };
+}
+
+/** Single name candidate. */
+export interface SeedCandidate {
+  readonly name: {
+    readonly surname: CharDetail[];
+    readonly givenName: CharDetail[];
+    readonly fullHangul: string;
+    readonly fullHanja: string;
+  };
+  readonly scores: {
+    readonly total: number;     // weighted average (0-100)
+    readonly hangul: number;    // 음령오행 (0-100)
+    readonly hanja: number;     // 자원오행 (0-100)
+    readonly fourFrame: number; // 사격수리 (0-100)
+    readonly saju: number;      // 사주 균형 (0-100)
+  };
+  readonly analysis: {
+    readonly hangul: HangulAnalysis;
+    readonly hanja: HanjaAnalysis;
+    readonly fourFrame: FourFrameAnalysis;
+    readonly saju: SajuCompatibility;
+  };
+  readonly interpretation: string;
+  readonly rank: number;
+}
+
+/** Character detail. */
+export interface CharDetail {
+  readonly hangul: string;
+  readonly hanja: string;
+  readonly meaning: string;
+  readonly strokes: number;
+  readonly element: string;    // resource element
+  readonly polarity: string;   // yin/yang
+}
+
+// ============================================================
+// Analysis detail types (used by calculators and candidates)
+// ============================================================
+
+/** Hangul (phonetic) analysis detail. */
+export interface HangulAnalysis {
+  readonly blocks: Array<{
+    hangul: string;
+    onset: string;
+    nucleus: string;
+    element: string;
+    polarity: string;
+  }>;
+  readonly polarityScore: number;
+  readonly elementScore: number;
+}
+
+/** Hanja (resource) analysis detail. */
+export interface HanjaAnalysis {
+  readonly blocks: Array<{
+    hanja: string;
+    hangul: string;
+    strokes: number;
+    resourceElement: string;
+    strokeElement: string;
+    polarity: string;
+  }>;
+  readonly polarityScore: number;
+  readonly elementScore: number;
+}
+
+/** Four-frame analysis detail. */
+export interface FourFrameAnalysis {
+  readonly frames: Array<{
+    type: 'won' | 'hyung' | 'lee' | 'jung';
+    strokeSum: number;
+    element: string;
+    polarity: string;
+    luckyLevel: number;
+  }>;
+  readonly elementScore: number;
+  readonly luckScore: number;
+}
+
+/** Saju compatibility analysis detail -- full factor breakdown. */
+export interface SajuCompatibility {
+  readonly yongshinElement: string;
+  readonly heeshinElement: string | null;
+  readonly gishinElement: string | null;
+  readonly nameElements: string[];
+  // Yongshin/Heeshin affinity
+  readonly yongshinMatchCount: number;
+  readonly yongshinGeneratingCount: number;
+  // Gishin penalty
+  readonly gishinMatchCount: number;
+  readonly gishinOvercomingCount: number;
+  // Ohaeng distribution
+  readonly deficiencyFillCount: number;      // 부족 오행 보충 수
+  readonly excessiveAvoidCount: number;      // 과다 오행 회피 수
+  // Day master context
+  readonly dayMasterSupportScore: number;    // 일간 보조 점수
+  // Composite
+  readonly affinityScore: number;
+}
+
+// ============================================================
+// Saju summary types
+// ============================================================
+
+/** Saju summary extracted from saju-ts SajuAnalysis. */
 export interface SajuSummary {
   readonly pillars: {
     readonly year: PillarSummary;
@@ -94,121 +211,11 @@ export interface PillarSummary {
   readonly branch: { code: string; hangul: string; hanja: string };
 }
 
-/** Single name candidate */
-export interface SeedCandidate {
-  readonly name: {
-    readonly surname: CharDetail[];
-    readonly givenName: CharDetail[];
-    readonly fullHangul: string;
-    readonly fullHanja: string;
-  };
-  readonly scores: {
-    readonly total: number;     // weighted average (0-100)
-    readonly hangul: number;    // 음령오행 (0-100)
-    readonly hanja: number;     // 자원오행 (0-100)
-    readonly fourFrame: number; // 사격수리 (0-100)
-    readonly saju: number;      // 사주 균형 (0-100)
-  };
-  readonly analysis: {
-    readonly hangul: HangulAnalysis;
-    readonly hanja: HanjaAnalysis;
-    readonly fourFrame: FourFrameAnalysis;
-    readonly saju: SajuCompatibility;
-  };
-  readonly interpretation: string;
-  readonly rank: number;
-}
-
-/** Character detail */
-export interface CharDetail {
-  readonly hangul: string;
-  readonly hanja: string;
-  readonly meaning: string;
-  readonly strokes: number;
-  readonly element: string;    // resource element
-  readonly polarity: string;   // yin/yang
-}
-
-/** Hangul (phonetic) analysis detail */
-export interface HangulAnalysis {
-  readonly blocks: Array<{
-    hangul: string;
-    onset: string;
-    nucleus: string;
-    element: string;
-    polarity: string;
-  }>;
-  readonly polarityScore: number;
-  readonly elementScore: number;
-}
-
-/** Hanja (resource) analysis detail */
-export interface HanjaAnalysis {
-  readonly blocks: Array<{
-    hanja: string;
-    hangul: string;
-    strokes: number;
-    resourceElement: string;
-    strokeElement: string;
-    polarity: string;
-  }>;
-  readonly polarityScore: number;
-  readonly elementScore: number;
-}
-
-/** Four frame analysis detail */
-export interface FourFrameAnalysis {
-  readonly frames: Array<{
-    type: 'won' | 'hyung' | 'lee' | 'jung';
-    strokeSum: number;
-    element: string;
-    polarity: string;
-    luckyLevel: number;
-  }>;
-  readonly elementScore: number;
-  readonly luckScore: number;
-}
-
-/** Saju compatibility analysis detail — 사주 전체 요소 반영 */
-export interface SajuCompatibility {
-  readonly yongshinElement: string;
-  readonly heeshinElement: string | null;
-  readonly gishinElement: string | null;
-  readonly nameElements: string[];
-  // Yongshin/Heeshin affinity
-  readonly yongshinMatchCount: number;
-  readonly yongshinGeneratingCount: number;
-  // Gishin penalty
-  readonly gishinMatchCount: number;
-  readonly gishinOvercomingCount: number;
-  // Ohaeng distribution
-  readonly deficiencyFillCount: number;      // 부족 오행 보충 수
-  readonly excessiveAvoidCount: number;      // 과다 오행 회피 수
-  // Day master context
-  readonly dayMasterSupportScore: number;    // 일간 보조 점수
-  // Composite
-  readonly affinityScore: number;
-}
-
-/** Main API output */
-export interface SeedResponse {
-  readonly request: SeedRequest;
-  readonly mode: 'evaluate' | 'recommend' | 'all';
-  readonly saju: SajuSummary;
-  readonly candidates: SeedCandidate[];
-  readonly totalCount: number;
-  readonly meta: {
-    readonly version: string;
-    readonly timestamp: string;
-  };
-}
-
 // ============================================================
 // Backward-compatible types (used by existing UI)
 // ============================================================
 
 export type Gender = 'male' | 'female';
-export type AnalysisType = 'FourFrame' | 'Hangul' | 'Hanja' | 'Saju';
 
 export interface BirthDateTime {
   readonly year: number;

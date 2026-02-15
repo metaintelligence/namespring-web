@@ -4,26 +4,19 @@ import { NameStatRepository } from './database/name-stat-repository.js';
 import { FourFrameCalculator } from './calculator/frame-calculator.js';
 import { HangulCalculator } from './calculator/hangul-calculator.js';
 import { HanjaCalculator } from './calculator/hanja-calculator.js';
-import { Element } from './model/element.js';
 import { Polarity } from './model/polarity.js';
-import { NameEvaluator, type EvaluationResult } from './evaluator/name-evaluator.js';
-import { FourFrameOptimizer, toStrokeKey, calculateFourFrameNumbersFromStrokes } from './search/four-frame-optimizer.js';
-import { MinHeap, pushTopK } from './search/heap.js';
+import { NameEvaluator, type EvaluationResult } from './evaluator/evaluator.js';
+import type { SajuOutputSummary } from './evaluator/saju-scorer.js';
 import type { ElementKey } from './evaluator/element-cycle.js';
-import { ELEMENT_KEYS, elementToKey, elementFromSajuCode, emptyDistribution } from './evaluator/element-cycle.js';
-import type { SajuOutputSummary } from './evaluator/strength-scorer.js';
+import { elementFromSajuCode, emptyDistribution } from './evaluator/element-cycle.js';
+import { FourFrameOptimizer } from './evaluator/search.js';
 import type {
   SeedRequest, SeedResponse, SeedCandidate, SajuSummary, PillarSummary,
-  BirthInfo, NameCharInput, ScoreWeights, CharDetail,
+  BirthInfo, NameCharInput, CharDetail,
 } from './types.js';
 
 // ── saju-ts optional integration ──
-
-type SajuModule = {
-  analyzeSaju: (input: any, config?: any) => any;
-  createBirthInput: (params: any) => any;
-};
-
+type SajuModule = { analyzeSaju: (input: any, config?: any) => any; createBirthInput: (params: any) => any };
 let sajuModule: SajuModule | null = null;
 const SAJU_MODULE_PATH = '../../saju-ts/src/index.js';
 
@@ -36,134 +29,81 @@ async function loadSajuModule(): Promise<SajuModule | null> {
 }
 
 // ── Constants ──
-
-const ALL_ELEMENTS = [Element.Wood, Element.Fire, Element.Earth, Element.Metal, Element.Water];
-const MAX_STROKES = 30;
-const MAX_CANDIDATES = 200;
-
-function adjustTo81(value: number): number {
-  if (value <= 81) return value;
-  return ((value - 1) % 81) + 1;
-}
-
-function ohaengToElement(ohaeng: string): Element {
-  const map: Record<string, Element> = {
-    'WOOD': Element.Wood, 'FIRE': Element.Fire, 'EARTH': Element.Earth,
-    'METAL': Element.Metal, 'WATER': Element.Water,
-    'Wood': Element.Wood, 'Fire': Element.Fire, 'Earth': Element.Earth,
-    'Metal': Element.Metal, 'Water': Element.Water,
-  };
-  return map[ohaeng] ?? Element.Earth;
-}
+const MAX_CANDIDATES = 500;
+const FRAME_LABELS: Record<string, string> = {
+  SAGYEOK_SURI: '사격수리(81수리)', SAJU_JAWON_BALANCE: '사주 자원 균형',
+  HOEKSU_EUMYANG: '획수 음양', BALEUM_OHAENG: '발음 오행',
+  BALEUM_EUMYANG: '발음 음양', SAGYEOK_OHAENG: '사격 오행',
+};
+const CHOSEONG = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'] as const;
+const JUNGSEONG = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'] as const;
+const OHAENG_CODES = ['WOOD', 'FIRE', 'EARTH', 'METAL', 'WATER'] as const;
+const EMPTY_PILLAR: PillarSummary = { stem: { code: '', hangul: '', hanja: '' }, branch: { code: '', hangul: '', hanja: '' } };
 
 // ══════════════════════════════════════════════════════════════
 // SeedEngine
 // ══════════════════════════════════════════════════════════════
 
 export class SeedEngine {
-  private hanjaRepo: HanjaRepository;
-  private fourFrameRepo: FourframeRepository;
-  private nameStatRepo: NameStatRepository;
+  private hanjaRepo = new HanjaRepository();
+  private fourFrameRepo = new FourframeRepository();
+  private nameStatRepo = new NameStatRepository();
   private initialized = false;
-
-  /** Pre-loaded 81수리: number → lucky_level string (fortune text) */
-  private luckyMap: Map<number, string> = new Map();
-  /** Valid 81수리 numbers (fortune bucket >= 15 i.e. 양운수 이상) */
-  private validFourFrameNumbers: Set<number> = new Set();
-  /** NameEvaluator instance (created after init) */
+  private luckyMap = new Map<number, string>();
+  private validFourFrameNumbers = new Set<number>();
   private evaluator: NameEvaluator | null = null;
-  /** FourFrameOptimizer instance */
   private optimizer: FourFrameOptimizer | null = null;
-
-  constructor() {
-    this.hanjaRepo = new HanjaRepository();
-    this.fourFrameRepo = new FourframeRepository();
-    this.nameStatRepo = new NameStatRepository();
-  }
 
   async init(): Promise<void> {
     if (this.initialized) return;
-    await Promise.all([
-      this.hanjaRepo.init(),
-      this.fourFrameRepo.init(),
-      this.nameStatRepo.init(),
-    ]);
-    await this.buildLuckyMap();
+    await Promise.all([this.hanjaRepo.init(), this.fourFrameRepo.init(), this.nameStatRepo.init()]);
+    for (const entry of await this.fourFrameRepo.findAll(81)) {
+      this.luckyMap.set(entry.number, entry.lucky_level ?? '');
+      const lv = entry.lucky_level ?? '';
+      if (lv.includes('최상') || lv.includes('상') || lv.includes('양'))
+        this.validFourFrameNumbers.add(entry.number);
+    }
     this.evaluator = new NameEvaluator(this.luckyMap);
     this.optimizer = new FourFrameOptimizer(this.validFourFrameNumbers);
     this.initialized = true;
-  }
-
-  private async buildLuckyMap(): Promise<void> {
-    const allEntries = await this.fourFrameRepo.findAll(81);
-    for (const entry of allEntries) {
-      this.luckyMap.set(entry.number, entry.lucky_level ?? '');
-      // Determine if this is a valid (favorable) number using fortune bucket
-      const level = entry.lucky_level ?? '';
-      if (level.includes('최상') || level.includes('상') || level.includes('양')) {
-        this.validFourFrameNumbers.add(entry.number);
-      }
-    }
   }
 
   // ── Main API ──
 
   async analyze(request: SeedRequest): Promise<SeedResponse> {
     await this.init();
-
     const mode = this.resolveMode(request);
     const sajuSummary = await this.analyzeSaju(request.birth);
-    const sajuDistribution = this.buildSajuDistribution(sajuSummary);
+    const sajuDist = this.buildSajuDistribution(sajuSummary);
     const sajuOutput = this.buildSajuOutput(sajuSummary);
 
-    let candidateInputs: NameCharInput[][];
-
-    if (mode === 'evaluate' && request.givenName && request.givenName.length > 0) {
-      candidateInputs = [request.givenName];
+    let inputs: NameCharInput[][];
+    if (mode === 'evaluate' && request.givenName?.length) {
+      inputs = [request.givenName];
     } else if (mode === 'recommend' || mode === 'all') {
-      candidateInputs = await this.generateCandidates(request, sajuSummary);
-      if (request.givenName && request.givenName.length > 0) {
-        candidateInputs.unshift(request.givenName);
-      }
+      inputs = await this.generateCandidates(request, sajuSummary);
+      if (request.givenName?.length) inputs.unshift(request.givenName);
     } else {
-      candidateInputs = request.givenName?.length ? [request.givenName] : [];
+      inputs = request.givenName?.length ? [request.givenName] : [];
     }
 
-    // Score all candidates using evaluator pipeline
     const scored: SeedCandidate[] = [];
-    for (const givenName of candidateInputs) {
-      const candidate = await this.scoreCandidate(
-        request.surname, givenName, sajuDistribution, sajuOutput,
-      );
-      scored.push(candidate);
-    }
-
-    // Sort by total score
+    for (const gn of inputs) scored.push(await this.scoreCandidate(request.surname, gn, sajuDist, sajuOutput));
     scored.sort((a, b) => b.scores.total - a.scores.total);
 
     const offset = request.options?.offset ?? 0;
     const limit = request.options?.limit ?? 20;
-    const paginated = scored.slice(offset, offset + limit);
-    const ranked = paginated.map((c, i) => ({ ...c, rank: offset + i + 1 }));
-
     return {
-      request,
-      mode,
-      saju: sajuSummary,
-      candidates: ranked,
+      request, mode, saju: sajuSummary,
+      candidates: scored.slice(offset, offset + limit).map((c, i) => ({ ...c, rank: offset + i + 1 })),
       totalCount: scored.length,
       meta: { version: '2.0.0', timestamp: new Date().toISOString() },
     };
   }
 
-  // ── Mode resolution ──
-
-  private resolveMode(request: SeedRequest): 'evaluate' | 'recommend' | 'all' {
-    if (request.mode && request.mode !== 'auto') return request.mode;
-    if (request.givenName && request.givenName.length > 0) {
-      return request.givenName.every(c => c.hanja) ? 'evaluate' : 'recommend';
-    }
-    return 'recommend';
+  private resolveMode(req: SeedRequest): 'evaluate' | 'recommend' | 'all' {
+    if (req.mode && req.mode !== 'auto') return req.mode;
+    return req.givenName?.length && req.givenName.every(c => c.hanja) ? 'evaluate' : 'recommend';
   }
 
   // ── Saju Analysis ──
@@ -172,409 +112,196 @@ export class SeedEngine {
     const saju = await loadSajuModule();
     if (saju) {
       try {
-        const birthInput = saju.createBirthInput({
-          birthYear: birth.year, birthMonth: birth.month,
-          birthDay: birth.day, birthHour: birth.hour, birthMinute: birth.minute,
+        const bi = saju.createBirthInput({
+          birthYear: birth.year, birthMonth: birth.month, birthDay: birth.day,
+          birthHour: birth.hour, birthMinute: birth.minute,
           gender: birth.gender === 'male' ? 'MALE' : 'FEMALE',
           timezone: birth.timezone ?? 'Asia/Seoul',
           latitude: birth.latitude ?? 37.5665, longitude: birth.longitude ?? 126.978,
         });
-        const analysis = saju.analyzeSaju(birthInput);
-        return this.extractSajuSummary(analysis);
+        return this.extractSajuSummary(saju.analyzeSaju(bi));
       } catch { /* fall through */ }
     }
-    return this.placeholderSajuSummary();
-  }
-
-  private extractSajuSummary(analysis: any): SajuSummary {
-    const pillars = analysis.pillars ?? analysis.coreResult?.pillars;
-    const makePillar = (p: any): PillarSummary => ({
-      stem: { code: p?.cheongan ?? '', hangul: p?.cheongan ?? '', hanja: '' },
-      branch: { code: p?.jiji ?? '', hangul: p?.jiji ?? '', hanja: '' },
-    });
-    const yongshinResult = analysis.yongshinResult;
-    const strengthResult = analysis.strengthResult;
-    const gyeokgukResult = analysis.gyeokgukResult;
-    const ohaengDist: Record<string, number> = {};
-    if (analysis.ohaengDistribution) {
-      if (analysis.ohaengDistribution instanceof Map) {
-        for (const [k, v] of analysis.ohaengDistribution) ohaengDist[String(k)] = Number(v);
-      } else {
-        Object.assign(ohaengDist, analysis.ohaengDistribution);
-      }
-    }
-    const { deficient, excessive } = this.analyzeOhaengBalance(ohaengDist);
-
     return {
-      pillars: {
-        year: makePillar(pillars?.year), month: makePillar(pillars?.month),
-        day: makePillar(pillars?.day), hour: makePillar(pillars?.hour),
-      },
-      dayMaster: {
-        stem: pillars?.day?.cheongan ?? '',
-        element: strengthResult?.dayMasterElement ?? '',
-        polarity: '',
-      },
-      strength: {
-        level: strengthResult?.level ?? '',
-        isStrong: strengthResult?.isStrong ?? false,
-        score: strengthResult?.score?.totalSupport ?? 0,
-      },
-      yongshin: {
-        element: yongshinResult?.finalYongshin ?? '',
-        heeshin: yongshinResult?.finalHeesin ?? null,
-        gishin: yongshinResult?.gisin ?? null,
-        gushin: yongshinResult?.gusin ?? null,
-        confidence: yongshinResult?.finalConfidence ?? 0,
-        reasoning: yongshinResult?.recommendations?.[0]?.reasoning ?? '',
-      },
-      gyeokguk: {
-        type: gyeokgukResult?.type ?? '',
-        category: gyeokgukResult?.category ?? '',
-        confidence: gyeokgukResult?.confidence ?? 0,
-      },
-      ohaengDistribution: ohaengDist,
-      deficientElements: deficient,
-      excessiveElements: excessive,
-    };
-  }
-
-  private analyzeOhaengBalance(dist: Record<string, number>): { deficient: string[]; excessive: string[] } {
-    const total = Object.values(dist).reduce((s, v) => s + v, 0);
-    if (total === 0) return { deficient: [], excessive: [] };
-    const avg = total / 5;
-    const deficient: string[] = [];
-    const excessive: string[] = [];
-    for (const key of ['WOOD', 'FIRE', 'EARTH', 'METAL', 'WATER']) {
-      const count = dist[key] ?? 0;
-      if (count === 0 || count <= avg * 0.4) deficient.push(key);
-      else if (count >= avg * 2.0) excessive.push(key);
-    }
-    return { deficient, excessive };
-  }
-
-  private placeholderSajuSummary(): SajuSummary {
-    const emptyPillar: PillarSummary = {
-      stem: { code: '', hangul: '', hanja: '' },
-      branch: { code: '', hangul: '', hanja: '' },
-    };
-    return {
-      pillars: { year: emptyPillar, month: emptyPillar, day: emptyPillar, hour: emptyPillar },
+      pillars: { year: EMPTY_PILLAR, month: EMPTY_PILLAR, day: EMPTY_PILLAR, hour: EMPTY_PILLAR },
       dayMaster: { stem: '', element: '', polarity: '' },
       strength: { level: '', isStrong: false, score: 0 },
       yongshin: { element: 'WOOD', heeshin: null, gishin: null, gushin: null, confidence: 0, reasoning: '' },
       gyeokguk: { type: '', category: '', confidence: 0 },
-      ohaengDistribution: {},
-      deficientElements: [],
-      excessiveElements: [],
+      ohaengDistribution: {}, deficientElements: [], excessiveElements: [],
     };
   }
 
-  // ── Build evaluator inputs from SajuSummary ──
+  private extractSajuSummary(a: any): SajuSummary {
+    const pil = a.pillars ?? a.coreResult?.pillars;
+    const mp = (p: any): PillarSummary => ({
+      stem: { code: p?.cheongan ?? '', hangul: p?.cheongan ?? '', hanja: '' },
+      branch: { code: p?.jiji ?? '', hangul: p?.jiji ?? '', hanja: '' },
+    });
+    const od: Record<string, number> = {};
+    if (a.ohaengDistribution) {
+      if (a.ohaengDistribution instanceof Map) {
+        for (const [k, v] of a.ohaengDistribution) od[String(k)] = Number(v);
+      } else Object.assign(od, a.ohaengDistribution);
+    }
+    const total = Object.values(od).reduce((s, v) => s + v, 0);
+    const avg = total / 5;
+    const deficient: string[] = [], excessive: string[] = [];
+    if (total > 0) for (const k of OHAENG_CODES) {
+      const c = od[k] ?? 0;
+      if (c === 0 || c <= avg * 0.4) deficient.push(k);
+      else if (c >= avg * 2.0) excessive.push(k);
+    }
+    const sr = a.strengthResult, yr = a.yongshinResult, gr = a.gyeokgukResult;
+    return {
+      pillars: { year: mp(pil?.year), month: mp(pil?.month), day: mp(pil?.day), hour: mp(pil?.hour) },
+      dayMaster: { stem: pil?.day?.cheongan ?? '', element: sr?.dayMasterElement ?? '', polarity: '' },
+      strength: { level: sr?.level ?? '', isStrong: sr?.isStrong ?? false, score: sr?.score?.totalSupport ?? 0 },
+      yongshin: {
+        element: yr?.finalYongshin ?? '', heeshin: yr?.finalHeesin ?? null,
+        gishin: yr?.gisin ?? null, gushin: yr?.gusin ?? null,
+        confidence: yr?.finalConfidence ?? 0, reasoning: yr?.recommendations?.[0]?.reasoning ?? '',
+      },
+      gyeokguk: { type: gr?.type ?? '', category: gr?.category ?? '', confidence: gr?.confidence ?? 0 },
+      ohaengDistribution: od, deficientElements: deficient, excessiveElements: excessive,
+    };
+  }
 
-  private buildSajuDistribution(summary: SajuSummary): Record<ElementKey, number> {
+  // ── Build evaluator inputs ──
+
+  private buildSajuDistribution(s: SajuSummary): Record<ElementKey, number> {
     const dist = emptyDistribution();
-    for (const [code, count] of Object.entries(summary.ohaengDistribution)) {
+    for (const [code, count] of Object.entries(s.ohaengDistribution)) {
       const key = elementFromSajuCode(code);
-      if (key) dist[key] = (dist[key] ?? 0) + count;
+      if (key) dist[key] += count;
     }
     return dist;
   }
 
-  private buildSajuOutput(summary: SajuSummary): SajuOutputSummary | null {
-    if (!summary.dayMaster.element && !summary.yongshin.element) return null;
-    const dmKey = elementFromSajuCode(summary.dayMaster.element);
+  private buildSajuOutput(s: SajuSummary): SajuOutputSummary | null {
+    if (!s.dayMaster.element && !s.yongshin.element) return null;
+    const dmKey = elementFromSajuCode(s.dayMaster.element);
+    const y = s.yongshin;
     return {
       dayMaster: dmKey ? { element: dmKey } : undefined,
-      strength: {
-        isStrong: summary.strength.isStrong,
-        totalSupport: summary.strength.score,
-        totalOppose: 0,
-      },
+      strength: { isStrong: s.strength.isStrong, totalSupport: s.strength.score, totalOppose: 0 },
       yongshin: {
-        finalYongshin: summary.yongshin.element,
-        finalHeesin: summary.yongshin.heeshin,
-        gisin: summary.yongshin.gishin,
-        gusin: summary.yongshin.gushin,
-        finalConfidence: summary.yongshin.confidence,
-        recommendations: summary.yongshin.reasoning ? [{
-          type: 'EOKBU',
-          primaryElement: summary.yongshin.element,
-          secondaryElement: summary.yongshin.heeshin,
-          confidence: summary.yongshin.confidence,
-          reasoning: summary.yongshin.reasoning,
-        }] : [],
+        finalYongshin: y.element, finalHeesin: y.heeshin, gisin: y.gishin, gusin: y.gushin,
+        finalConfidence: y.confidence,
+        recommendations: y.reasoning
+          ? [{ type: 'EOKBU', primaryElement: y.element, secondaryElement: y.heeshin, confidence: y.confidence, reasoning: y.reasoning }]
+          : [],
       },
       tenGod: undefined,
     };
   }
 
-  // ── Score a single candidate using evaluator pipeline ──
+  // ── Score a single candidate ──
+  // NOTE: The evaluator creates its own calculators internally. We create a second
+  // set here for getAnalysis().data which the SeedCandidate contract requires.
+  // Eliminating this would require modifying the evaluator to expose its calculators.
 
   private async scoreCandidate(
-    surname: NameCharInput[],
-    givenName: NameCharInput[],
-    sajuDist: Record<ElementKey, number>,
-    sajuOutput: SajuOutputSummary | null,
+    surname: NameCharInput[], givenName: NameCharInput[],
+    sajuDist: Record<ElementKey, number>, sajuOutput: SajuOutputSummary | null,
   ): Promise<SeedCandidate> {
-    const surnameEntries = await this.resolveEntries(surname);
-    const givenNameEntries = await this.resolveEntries(givenName);
+    const se = await this.resolveEntries(surname);
+    const ge = await this.resolveEntries(givenName);
+    const ev = this.evaluator!.evaluate(se, ge, sajuDist, sajuOutput);
+    const cm = ev.categoryMap;
+    const sajuBal = cm.SAJU_JAWON_BALANCE?.score ?? 0;
 
-    // Run evaluator pipeline (matching namespring-web)
-    const evalResult = this.evaluator!.evaluate(
-      surnameEntries, givenNameEntries, sajuDist, sajuOutput,
-    );
-
-    // Extract individual frame scores for backward-compat scores object
-    const sagyeokScore = evalResult.categoryMap.SAGYEOK_SURI?.score ?? 0;
-    const sajuBalance = evalResult.categoryMap.SAJU_JAWON_BALANCE?.score ?? 0;
-    const hoeksuEumyang = evalResult.categoryMap.HOEKSU_EUMYANG?.score ?? 0;
-    const baleumOhaeng = evalResult.categoryMap.BALEUM_OHAENG?.score ?? 0;
-    const baleumEumyang = evalResult.categoryMap.BALEUM_EUMYANG?.score ?? 0;
-    const sagyeokOhaeng = evalResult.categoryMap.SAGYEOK_OHAENG?.score ?? 0;
-
-    // Map to the 4-category scores for backward compat
-    const hangulScore = (baleumOhaeng + baleumEumyang) / 2;
-    const hanjaScore = (hoeksuEumyang + sagyeokOhaeng) / 2;
-    const fourFrameScore = sagyeokScore;
-    const sajuScore = sajuBalance;
-    const totalScore = evalResult.score;
-
-    const surnameDetails = this.toCharDetails(surnameEntries);
-    const givenNameDetails = this.toCharDetails(givenNameEntries);
-
-    // Build analysis details from calculators
-    const hangulCalc = new HangulCalculator(surnameEntries, givenNameEntries);
-    const hanjaCalc = new HanjaCalculator(surnameEntries, givenNameEntries);
-    const fourFrameCalc = new FourFrameCalculator(surnameEntries, givenNameEntries);
-    hangulCalc.calculate();
-    hanjaCalc.calculate();
-    fourFrameCalc.calculate();
+    const hgCalc = new HangulCalculator(se, ge); hgCalc.calculate();
+    const hjCalc = new HanjaCalculator(se, ge);   hjCalc.calculate();
+    const ffCalc = new FourFrameCalculator(se, ge); ffCalc.calculate();
+    const all = [...se, ...ge];
+    const r = (v: number) => Math.round(v * 10) / 10;
 
     return {
       name: {
-        surname: surnameDetails,
-        givenName: givenNameDetails,
-        fullHangul: [...surnameEntries, ...givenNameEntries].map(e => e.hangul).join(''),
-        fullHanja: [...surnameEntries, ...givenNameEntries].map(e => e.hanja).join(''),
+        surname: se.map(toCharDetail), givenName: ge.map(toCharDetail),
+        fullHangul: all.map(e => e.hangul).join(''), fullHanja: all.map(e => e.hanja).join(''),
       },
       scores: {
-        total: Math.round(totalScore * 10) / 10,
-        hangul: Math.round(hangulScore * 10) / 10,
-        hanja: Math.round(hanjaScore * 10) / 10,
-        fourFrame: Math.round(fourFrameScore * 10) / 10,
-        saju: Math.round(sajuScore * 10) / 10,
+        total: r(ev.score),
+        hangul: r(((cm.BALEUM_OHAENG?.score ?? 0) + (cm.BALEUM_EUMYANG?.score ?? 0)) / 2),
+        hanja: r(((cm.HOEKSU_EUMYANG?.score ?? 0) + (cm.SAGYEOK_OHAENG?.score ?? 0)) / 2),
+        fourFrame: r(cm.SAGYEOK_SURI?.score ?? 0), saju: r(sajuBal),
       },
       analysis: {
-        hangul: hangulCalc.getAnalysis().data,
-        hanja: hanjaCalc.getAnalysis().data,
-        fourFrame: fourFrameCalc.getAnalysis().data,
+        hangul: hgCalc.getAnalysis().data, hanja: hjCalc.getAnalysis().data,
+        fourFrame: ffCalc.getAnalysis().data,
         saju: {
           yongshinElement: elementFromSajuCode(sajuOutput?.yongshin?.finalYongshin ?? '') ?? '',
           heeshinElement: elementFromSajuCode(sajuOutput?.yongshin?.finalHeesin ?? null) ?? null,
           gishinElement: elementFromSajuCode(sajuOutput?.yongshin?.gisin ?? null) ?? null,
-          nameElements: givenNameEntries.map(e => e.resource_element),
-          yongshinMatchCount: 0,
-          yongshinGeneratingCount: 0,
-          gishinMatchCount: 0,
-          gishinOvercomingCount: 0,
-          deficiencyFillCount: 0,
-          excessiveAvoidCount: 0,
-          dayMasterSupportScore: 0,
-          affinityScore: sajuBalance,
+          nameElements: ge.map(e => e.resource_element),
+          yongshinMatchCount: 0, yongshinGeneratingCount: 0,
+          gishinMatchCount: 0, gishinOvercomingCount: 0,
+          deficiencyFillCount: 0, excessiveAvoidCount: 0,
+          dayMasterSupportScore: 0, affinityScore: sajuBal,
         },
       },
-      interpretation: this.buildInterpretation(evalResult),
-      rank: 0,
+      interpretation: buildInterpretation(ev), rank: 0,
     };
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // Name Generation (recommend/all mode)
-  // ══════════════════════════════════════════════════════════════
+  // ── Name Generation (recommend/all mode) ──
 
-  private async generateCandidates(
-    request: SeedRequest,
-    sajuSummary: SajuSummary,
-  ): Promise<NameCharInput[][]> {
-    const surnameEntries = await this.resolveEntries(request.surname);
-    const surnameStrokes = surnameEntries.map(e => e.strokes);
-    const targetLength = request.givenNameLength ?? 2;
+  private async generateCandidates(req: SeedRequest, saju: SajuSummary): Promise<NameCharInput[][]> {
+    const se = await this.resolveEntries(req.surname);
+    const nameLen = req.givenNameLength ?? 2;
+    const validKeys = this.optimizer!.getValidCombinations(se.map(e => e.strokes), nameLen);
+    const targets = collectElements(saju.yongshin.element, saju.yongshin.heeshin, saju.deficientElements);
+    const avoids = collectElements(saju.yongshin.gishin, saju.yongshin.gushin, saju.excessiveElements);
+    if (targets.size === 0) targets.add('Wood');
 
-    // Use FourFrameOptimizer (matching namespring-web)
-    const validStrokeKeys = this.optimizer!.getValidCombinations(surnameStrokes, targetLength);
+    // Collect stroke counts needed, then bulk-load hanja
+    const needed = new Set<number>();
+    for (const key of validKeys) for (const s of key.split(',')) needed.add(Number(s));
+    const allHanja = await this.hanjaRepo.findByStrokeRange(Math.min(...needed), Math.max(...needed));
 
-    // Determine target/avoid elements from saju
-    const targetElements = this.determineTargetElements(sajuSummary);
-    const avoidElements = this.determineAvoidElements(sajuSummary);
-
-    // Pre-load hanja by element and strokes
-    const hanjaByElementAndStrokes = new Map<string, Map<number, HanjaEntry[]>>();
-    for (const el of ALL_ELEMENTS) {
-      const entries = await this.hanjaRepo.findByResourceElement(el.english);
-      const byStrokes = new Map<number, HanjaEntry[]>();
-      for (const entry of entries) {
-        if (entry.is_surname) continue;
-        const existing = byStrokes.get(entry.strokes) ?? [];
-        existing.push(entry);
-        byStrokes.set(entry.strokes, existing);
-      }
-      hanjaByElementAndStrokes.set(el.english, byStrokes);
+    // Index by strokes: preferred (target elements) then acceptable
+    const pref = new Map<number, HanjaEntry[]>(), acc = new Map<number, HanjaEntry[]>();
+    for (const e of allHanja) {
+      if (e.is_surname || !needed.has(e.strokes) || avoids.has(e.resource_element)) continue;
+      const bucket = targets.has(e.resource_element) ? pref : acc;
+      (bucket.get(e.strokes) ?? (bucket.set(e.strokes, []), bucket.get(e.strokes)!)).push(e);
     }
+    const chars = (s: number) => [...(pref.get(s) ?? []), ...(acc.get(s) ?? [])];
 
-    const candidates: NameCharInput[][] = [];
-
-    for (const strokeKey of validStrokeKeys) {
-      if (candidates.length >= MAX_CANDIDATES) break;
-      const strokeCounts = strokeKey.split(',').map(Number);
-
-      if (targetLength === 1) {
-        const chars = this.findCharsForSlot(strokeCounts[0], targetElements, avoidElements, hanjaByElementAndStrokes);
-        for (const c of chars.slice(0, 5)) {
-          candidates.push([{ hangul: c.hangul, hanja: c.hanja }]);
-          if (candidates.length >= MAX_CANDIDATES) break;
+    const out: NameCharInput[][] = [];
+    for (const sk of validKeys) {
+      if (out.length >= MAX_CANDIDATES) break;
+      const sc = sk.split(',').map(Number);
+      if (nameLen === 1) {
+        for (const c of chars(sc[0]).slice(0, 8)) {
+          out.push([{ hangul: c.hangul, hanja: c.hanja }]);
+          if (out.length >= MAX_CANDIDATES) break;
         }
       } else {
-        const chars1 = this.findCharsForSlot(strokeCounts[0], targetElements, avoidElements, hanjaByElementAndStrokes);
-        const chars2 = this.findCharsForSlot(strokeCounts[1], targetElements, avoidElements, hanjaByElementAndStrokes);
-        for (const c1 of chars1.slice(0, 4)) {
-          for (const c2 of chars2.slice(0, 4)) {
-            if (c1.hanja === c2.hanja) continue;
-            candidates.push([
-              { hangul: c1.hangul, hanja: c1.hanja },
-              { hangul: c2.hangul, hanja: c2.hanja },
-            ]);
-            if (candidates.length >= MAX_CANDIDATES) break;
+        const c1 = chars(sc[0]).slice(0, 6), c2 = chars(sc[1]).slice(0, 6);
+        for (const a of c1) {
+          for (const b of c2) {
+            if (a.hanja === b.hanja) continue;
+            out.push([{ hangul: a.hangul, hanja: a.hanja }, { hangul: b.hangul, hanja: b.hanja }]);
+            if (out.length >= MAX_CANDIDATES) break;
           }
-          if (candidates.length >= MAX_CANDIDATES) break;
+          if (out.length >= MAX_CANDIDATES) break;
         }
       }
     }
-
-    return candidates;
-  }
-
-  private determineTargetElements(summary: SajuSummary): Element[] {
-    const targets: Element[] = [];
-    const yong = elementFromSajuCode(summary.yongshin.element);
-    if (yong) targets.push(Element.get(yong));
-    const hee = elementFromSajuCode(summary.yongshin.heeshin);
-    if (hee && !targets.some(t => t.english === hee)) targets.push(Element.get(hee));
-    for (const d of summary.deficientElements) {
-      const key = elementFromSajuCode(d);
-      if (key && !targets.some(t => t.english === key)) targets.push(Element.get(key));
-    }
-    if (targets.length === 0) targets.push(Element.Wood);
-    return targets;
-  }
-
-  private determineAvoidElements(summary: SajuSummary): Element[] {
-    const avoid: Element[] = [];
-    const gis = elementFromSajuCode(summary.yongshin.gishin);
-    if (gis) avoid.push(Element.get(gis));
-    const gus = elementFromSajuCode(summary.yongshin.gushin);
-    if (gus && !avoid.some(a => a.english === gus)) avoid.push(Element.get(gus));
-    for (const e of summary.excessiveElements) {
-      const key = elementFromSajuCode(e);
-      if (key && !avoid.some(a => a.english === key)) avoid.push(Element.get(key));
-    }
-    return avoid;
-  }
-
-  private findCharsForSlot(
-    strokes: number,
-    targetElements: Element[],
-    avoidElements: Element[],
-    hanjaByElementAndStrokes: Map<string, Map<number, HanjaEntry[]>>,
-  ): HanjaEntry[] {
-    const preferred: HanjaEntry[] = [];
-    const acceptable: HanjaEntry[] = [];
-    for (const el of ALL_ELEMENTS) {
-      const chars = hanjaByElementAndStrokes.get(el.english)?.get(strokes) ?? [];
-      const isTarget = targetElements.some(t => t.isSameAs(el));
-      const isAvoid = avoidElements.some(a => a.isSameAs(el));
-      if (isAvoid) continue;
-      if (isTarget) preferred.push(...chars);
-      else acceptable.push(...chars);
-    }
-    return [...preferred, ...acceptable];
+    return out;
   }
 
   // ── Entry resolution ──
 
   private async resolveEntries(chars: NameCharInput[]): Promise<HanjaEntry[]> {
-    const entries: HanjaEntry[] = [];
-    for (const char of chars) {
-      if (char.hanja) {
-        const entry = await this.hanjaRepo.findByHanja(char.hanja);
-        if (entry) { entries.push(entry); continue; }
-      }
-      const byHangul = await this.hanjaRepo.findByHangul(char.hangul);
-      if (byHangul.length > 0) entries.push(byHangul[0]);
-      else entries.push(this.makeFallbackEntry(char.hangul));
-    }
-    return entries;
-  }
-
-  private makeFallbackEntry(hangul: string): HanjaEntry {
-    const code = hangul.charCodeAt(0) - 0xAC00;
-    const onset = code >= 0 && code <= 11171 ? Math.floor(code / 588) : 0;
-    const nucleus = code >= 0 && code <= 11171 ? Math.floor((code % 588) / 28) : 0;
-    const CHOSEONG = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
-    const JUNGSEONG = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'];
-    return {
-      id: 0, hangul, hanja: hangul,
-      onset: CHOSEONG[onset] ?? 'ㅇ', nucleus: JUNGSEONG[nucleus] ?? 'ㅏ',
-      strokes: 1, stroke_element: 'Wood', resource_element: 'Earth',
-      meaning: '', radical: '', is_surname: false,
-    };
-  }
-
-  private toCharDetails(entries: HanjaEntry[]): CharDetail[] {
-    return entries.map(e => ({
-      hangul: e.hangul, hanja: e.hanja, meaning: e.meaning,
-      strokes: e.strokes, element: e.resource_element,
-      polarity: Polarity.get(e.strokes).english,
+    return Promise.all(chars.map(async (c) => {
+      if (c.hanja) { const e = await this.hanjaRepo.findByHanja(c.hanja); if (e) return e; }
+      const bh = await this.hanjaRepo.findByHangul(c.hangul);
+      return bh[0] ?? makeFallbackEntry(c.hangul);
     }));
-  }
-
-  // ── Interpretation builder ──
-
-  private buildInterpretation(evalResult: EvaluationResult): string {
-    const parts: string[] = [];
-    const score = evalResult.score;
-
-    if (evalResult.isPassed) {
-      if (score >= 80) parts.push('종합적으로 매우 우수한 이름입니다.');
-      else if (score >= 65) parts.push('종합적으로 좋은 이름입니다.');
-      else parts.push('합격 기준을 충족하는 이름입니다.');
-    } else {
-      if (score >= 55) parts.push('보통 수준의 이름입니다.');
-      else parts.push('개선 여지가 있는 이름입니다.');
-    }
-
-    // Per-frame feedback
-    for (const cat of evalResult.categories) {
-      if (cat.frame === 'SEONGMYEONGHAK') continue;
-      if (!cat.isPassed && cat.score < 50) {
-        const label = this.frameLabel(cat.frame);
-        parts.push(`${label} 부분을 점검해 보세요.`);
-      }
-    }
-
-    return parts.join(' ');
-  }
-
-  private frameLabel(frame: string): string {
-    const labels: Record<string, string> = {
-      'SAGYEOK_SURI': '사격수리(81수리)',
-      'SAJU_JAWON_BALANCE': '사주 자원 균형',
-      'HOEKSU_EUMYANG': '획수 음양',
-      'BALEUM_OHAENG': '발음 오행',
-      'BALEUM_EUMYANG': '발음 음양',
-      'SAGYEOK_OHAENG': '사격 오행',
-    };
-    return labels[frame] ?? frame;
   }
 
   close(): void {
@@ -582,4 +309,45 @@ export class SeedEngine {
     this.fourFrameRepo.close();
     this.nameStatRepo.close();
   }
+}
+
+// ── Pure helpers ──
+
+function toCharDetail(e: HanjaEntry): CharDetail {
+  return {
+    hangul: e.hangul, hanja: e.hanja, meaning: e.meaning,
+    strokes: e.strokes, element: e.resource_element, polarity: Polarity.get(e.strokes).english,
+  };
+}
+
+function makeFallbackEntry(hangul: string): HanjaEntry {
+  const code = hangul.charCodeAt(0) - 0xAC00;
+  const ok = code >= 0 && code <= 11171;
+  return {
+    id: 0, hangul, hanja: hangul,
+    onset: CHOSEONG[ok ? Math.floor(code / 588) : 0] ?? 'ㅇ',
+    nucleus: JUNGSEONG[ok ? Math.floor((code % 588) / 28) : 0] ?? 'ㅏ',
+    strokes: 1, stroke_element: 'Wood', resource_element: 'Earth',
+    meaning: '', radical: '', is_surname: false,
+  };
+}
+
+function collectElements(...sources: (string | null | undefined | string[])[]): Set<string> {
+  const out = new Set<string>();
+  for (const src of sources) {
+    if (Array.isArray(src)) { for (const s of src) { const k = elementFromSajuCode(s); if (k) out.add(k); } }
+    else if (src) { const k = elementFromSajuCode(src); if (k) out.add(k); }
+  }
+  return out;
+}
+
+function buildInterpretation(ev: EvaluationResult): string {
+  const { score, isPassed, categories } = ev;
+  const overall = isPassed
+    ? (score >= 80 ? '종합적으로 매우 우수한 이름입니다.' : score >= 65 ? '종합적으로 좋은 이름입니다.' : '합격 기준을 충족하는 이름입니다.')
+    : (score >= 55 ? '보통 수준의 이름입니다.' : '개선 여지가 있는 이름입니다.');
+  const warns = categories
+    .filter(c => c.frame !== 'SEONGMYEONGHAK' && !c.isPassed && c.score < 50)
+    .map(c => `${FRAME_LABELS[c.frame] ?? c.frame} 부분을 점검해 보세요.`);
+  return [overall, ...warns].join(' ');
 }

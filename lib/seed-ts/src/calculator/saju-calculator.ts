@@ -4,8 +4,7 @@ import { Energy } from '../model/energy.js';
 import type { SajuCompatibility } from '../types.js';
 import type { ElementKey } from '../evaluator/element-cycle.js';
 import { ELEMENT_KEYS, elementToKey, emptyDistribution, distributionFromArrangement } from '../evaluator/element-cycle.js';
-import { computeSajuNameScore, type SajuNameScoreResult } from '../evaluator/saju-name-scorer.js';
-import type { SajuOutputSummary } from '../evaluator/strength-scorer.js';
+import { computeSajuNameScore, type SajuNameScoreResult, type SajuOutputSummary } from '../evaluator/saju-scorer.js';
 
 /**
  * Full saju context for naming compatibility analysis.
