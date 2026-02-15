@@ -266,10 +266,13 @@ export class SeedEngine {
           cheonganSipseong: String(i.cheonganSipseong ?? ''),
           jijiPrincipalSipseong: String(i.jijiPrincipalSipseong ?? ''),
           hiddenStems: Array.isArray(i.hiddenStems)
-            ? i.hiddenStems.map((h: any) => ({ stem: String(h.stem ?? ''), element: String(h.element ?? ''), ratio: Number(h.ratio) || 0 }))
+            ? i.hiddenStems.map((h: any) => {
+                const sc = String(h.stem ?? '');
+                return { stem: sc, element: CHEONGAN[sc]?.el ?? '', ratio: Number(h.ratio ?? (h.days ? h.days / 30 : 0)) || 0 };
+              })
             : [],
           hiddenStemSipseong: Array.isArray(i.hiddenStemSipseong)
-            ? i.hiddenStemSipseong.map((h: any) => ({ stem: String(h.stem ?? ''), sipseong: String(h.sipseong ?? '') }))
+            ? i.hiddenStemSipseong.map((h: any) => ({ stem: String(h.entry?.stem ?? h.stem ?? ''), sipseong: String(h.sipseong ?? '') }))
             : [],
         };
       }
@@ -309,13 +312,19 @@ export class SeedEngine {
     }
 
     const wsh = Array.isArray(a.weightedShinsalHits) ? a.weightedShinsalHits : [];
+    const gradeFromWeight = (w: number) => w >= 80 ? 'A' : w >= 50 ? 'B' : 'C';
     const shinsalHits = wsh.length > 0
-      ? wsh.map((w: any) => ({
-          type: String(w.hit?.type ?? ''), position: String(w.hit?.position ?? ''), grade: String(w.hit?.grade ?? ''),
-          baseWeight: Number(w.baseWeight) || 0, positionMultiplier: Number(w.positionMultiplier) || 0, weightedScore: Number(w.weightedScore) || 0,
-        }))
+      ? wsh.map((w: any) => {
+          const bw = Number(w.baseWeight) || 0;
+          return {
+            type: String(w.hit?.type ?? ''), position: String(w.hit?.position ?? ''),
+            grade: String(w.hit?.grade || '') || gradeFromWeight(bw),
+            baseWeight: bw, positionMultiplier: Number(w.positionMultiplier) || 0, weightedScore: Number(w.weightedScore) || 0,
+          };
+        })
       : (Array.isArray(a.shinsalHits) ? a.shinsalHits : []).map((h: any) => ({
-          type: String(h.type ?? ''), position: String(h.position ?? ''), grade: String(h.grade ?? ''),
+          type: String(h.type ?? ''), position: String(h.position ?? ''),
+          grade: String(h.grade || '') || 'C',
           baseWeight: 0, positionMultiplier: 0, weightedScore: 0,
         }));
 
