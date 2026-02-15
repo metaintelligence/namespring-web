@@ -181,6 +181,11 @@ export interface PillarSummary {
 }
 
 export interface TimeCorrectionSummary {
+  readonly standardYear: number;
+  readonly standardMonth: number;
+  readonly standardDay: number;
+  readonly standardHour: number;
+  readonly standardMinute: number;
   readonly adjustedYear: number;
   readonly adjustedMonth: number;
   readonly adjustedDay: number;
@@ -233,6 +238,15 @@ export interface CheonganRelationSummary {
   readonly stems: string[];
   readonly resultElement: string | null;
   readonly note: string;
+  readonly score: CheonganRelationScoreSummary | null;
+}
+
+export interface CheonganRelationScoreSummary {
+  readonly baseScore: number;
+  readonly adjacencyBonus: number;
+  readonly outcomeMultiplier: number;
+  readonly finalScore: number;
+  readonly rationale: string;
 }
 
 export interface HapHwaEvaluationSummary {

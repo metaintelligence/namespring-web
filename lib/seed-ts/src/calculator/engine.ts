@@ -104,7 +104,7 @@ function emptySaju(): SajuSummary {
   const ep: PillarSummary = { stem: { code: '', hangul: '', hanja: '' }, branch: { code: '', hangul: '', hanja: '' } };
   return {
     pillars: { year: ep, month: ep, day: ep, hour: ep },
-    timeCorrection: { adjustedYear: 0, adjustedMonth: 0, adjustedDay: 0, adjustedHour: 0, adjustedMinute: 0, dstCorrectionMinutes: 0, longitudeCorrectionMinutes: 0, equationOfTimeMinutes: 0 },
+    timeCorrection: { standardYear: 0, standardMonth: 0, standardDay: 0, standardHour: 0, standardMinute: 0, adjustedYear: 0, adjustedMonth: 0, adjustedDay: 0, adjustedHour: 0, adjustedMinute: 0, dstCorrectionMinutes: 0, longitudeCorrectionMinutes: 0, equationOfTimeMinutes: 0 },
     dayMaster: { stem: '', element: '', polarity: '' },
     strength: { level: '', isStrong: false, totalSupport: 0, totalOppose: 0, deukryeong: 0, deukji: 0, deukse: 0, details: [] },
     yongshin: { element: 'WOOD', heeshin: null, gishin: null, gushin: null, confidence: 0, agreement: '', recommendations: [] },
@@ -344,6 +344,8 @@ export class SeedEngine {
     return {
       pillars: { year: mapPillar(pil?.year), month: mapPillar(pil?.month), day: mapPillar(pil?.day), hour: mapPillar(pil?.hour) },
       timeCorrection: {
+        standardYear: Number(cr?.standardYear) || 0, standardMonth: Number(cr?.standardMonth) || 0,
+        standardDay: Number(cr?.standardDay) || 0, standardHour: Number(cr?.standardHour) || 0, standardMinute: Number(cr?.standardMinute) || 0,
         adjustedYear: Number(cr?.adjustedYear) || 0, adjustedMonth: Number(cr?.adjustedMonth) || 0,
         adjustedDay: Number(cr?.adjustedDay) || 0, adjustedHour: Number(cr?.adjustedHour) || 0, adjustedMinute: Number(cr?.adjustedMinute) || 0,
         dstCorrectionMinutes: Number(cr?.dstCorrectionMinutes) || 0,
@@ -380,10 +382,27 @@ export class SeedEngine {
         confidence: Number(gr?.confidence) || 0, reasoning: String(gr?.reasoning ?? ''),
       },
       ohaengDistribution: od, deficientElements: deficient, excessiveElements: excessive,
-      cheonganRelations: (Array.isArray(a.cheonganRelations) ? a.cheonganRelations : []).map((r: any) => ({
-        type: String(r.type ?? ''), stems: toStrArr(r.members),
-        resultElement: r.resultOhaeng != null ? String(r.resultOhaeng) : null, note: String(r.note ?? ''),
-      })),
+      cheonganRelations: (() => {
+        const scored = Array.isArray(a.scoredCheonganRelations) ? a.scoredCheonganRelations : [];
+        const scoreMap = new Map<string, any>();
+        for (const s of scored) {
+          const key = String(s.hit?.type ?? '') + ':' + toStrArr(s.hit?.members).sort().join(',');
+          scoreMap.set(key, s.score);
+        }
+        return (Array.isArray(a.cheonganRelations) ? a.cheonganRelations : []).map((r: any) => {
+          const key = String(r.type ?? '') + ':' + toStrArr(r.members).sort().join(',');
+          const sc = scoreMap.get(key);
+          return {
+            type: String(r.type ?? ''), stems: toStrArr(r.members),
+            resultElement: r.resultOhaeng != null ? String(r.resultOhaeng) : null, note: String(r.note ?? ''),
+            score: sc ? {
+              baseScore: Number(sc.baseScore) || 0, adjacencyBonus: Number(sc.adjacencyBonus) || 0,
+              outcomeMultiplier: Number(sc.outcomeMultiplier) || 0, finalScore: Number(sc.finalScore) || 0,
+              rationale: String(sc.rationale ?? ''),
+            } : null,
+          };
+        });
+      })(),
       hapHwaEvaluations: (Array.isArray(a.hapHwaEvaluations) ? a.hapHwaEvaluations : []).map((e: any) => ({
         stem1: String(e.stem1 ?? ''), stem2: String(e.stem2 ?? ''),
         position1: String(e.position1 ?? ''), position2: String(e.position2 ?? ''),

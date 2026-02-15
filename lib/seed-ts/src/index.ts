@@ -9,7 +9,7 @@ export type {
   TimeCorrectionSummary, StrengthSummary,
   YongshinSummary, YongshinRecommendationSummary,
   GyeokgukSummary,
-  CheonganRelationSummary, HapHwaEvaluationSummary, JijiRelationSummary,
+  CheonganRelationSummary, CheonganRelationScoreSummary, HapHwaEvaluationSummary, JijiRelationSummary,
   TenGodSummary, TenGodPositionSummary,
   ShinsalHitSummary, ShinsalCompositeSummary,
   PalaceSummary,
