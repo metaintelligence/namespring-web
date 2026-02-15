@@ -110,12 +110,9 @@ function emptySaju(): SajuSummary {
     yongshin: { element: 'WOOD', heeshin: null, gishin: null, gushin: null, confidence: 0, agreement: '', recommendations: [] },
     gyeokguk: { type: '', category: '', baseSipseong: null, confidence: 0, reasoning: '' },
     ohaengDistribution: {}, deficientElements: [], excessiveElements: [],
-    cheonganRelations: [], hapHwaEvaluations: [], jijiRelations: [],
-    sibiUnseong: null, gongmang: null, tenGodAnalysis: null,
-    shinsalHits: [], shinsalComposites: [],
-    palaceAnalysis: null, daeunInfo: null, saeunPillars: [], trace: [],
-    raw: {},
-  };
+    cheonganRelations: [], jijiRelations: [],
+    gongmang: null, tenGodAnalysis: null, shinsalHits: [],
+  } as SajuSummary;
 }
 
 function toCharDetail(e: HanjaEntry): CharDetail {
@@ -220,6 +217,10 @@ export class SeedEngine {
   }
 
   private extractSaju(a: any): SajuSummary {
+    // serialize-first: saju-ts의 모든 필드를 자동 포함 (Map→Object, Set→Array, Class→plain)
+    // 이후 seed-ts가 보강/변환하는 필드만 override
+    const base = serialize(a) as Record<string, unknown>;
+
     const pil = a.pillars ?? a.coreResult?.pillars;
     const cr = a.coreResult;
     const sr = a.strengthResult;
@@ -342,6 +343,7 @@ export class SeedEngine {
     const gm = a.gongmangVoidBranches;
 
     return {
+      ...base,
       pillars: { year: mapPillar(pil?.year), month: mapPillar(pil?.month), day: mapPillar(pil?.day), hour: mapPillar(pil?.hour) },
       timeCorrection: {
         standardYear: Number(cr?.standardYear) || 0, standardMonth: Number(cr?.standardMonth) || 0,
@@ -428,8 +430,7 @@ export class SeedEngine {
         reasoning: Array.isArray(t.reasoning) ? t.reasoning.map(String) : [],
         confidence: typeof t.confidence === 'number' ? t.confidence : null,
       })),
-      raw: serialize(a) as Record<string, unknown>,
-    };
+    } as SajuSummary;
   }
 
   private buildSajuContext(s: SajuSummary): { dist: Record<ElementKey, number>; output: SajuOutputSummary | null } {

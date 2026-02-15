@@ -36,7 +36,20 @@ try {
   });
 
   const saju = resp.saju;
-  const raw = saju.raw as Record<string, unknown>;
+  // serialize-first: saju 객체 자체에 원본 키가 포함됨 (coreResult, strengthResult 등)
+  // seed-ts 보강 키 목록 — 이 키들은 원본이 아닌 변환된 버전
+  const ENRICHED_KEYS = new Set([
+    'pillars', 'timeCorrection', 'dayMaster', 'strength', 'yongshin', 'gyeokguk',
+    'ohaengDistribution', 'deficientElements', 'excessiveElements',
+    'cheonganRelations', 'jijiRelations', 'tenGodAnalysis', 'shinsalHits',
+    'gongmang', 'hapHwaEvaluations', 'sibiUnseong', 'shinsalComposites',
+    'palaceAnalysis', 'daeunInfo', 'saeunPillars', 'trace',
+  ]);
+  // raw = saju-ts 원본 키만 (coreResult, strengthResult 등)
+  const raw: Record<string, unknown> = {};
+  for (const k of Object.keys(saju)) {
+    if (!ENRICHED_KEYS.has(k)) raw[k] = (saju as any)[k];
+  }
 
   function typeDesc(v: unknown): string {
     if (v === null) return 'null';
@@ -57,7 +70,7 @@ try {
   console.log('\n' + '━'.repeat(70));
   console.log('  2. SajuSummary 구조화 키');
   console.log('━'.repeat(70));
-  const summaryKeys = Object.keys(saju).filter(k => k !== 'raw').sort();
+  const summaryKeys = Object.keys(saju).sort();
   for (const k of summaryKeys) console.log(`  ${k.padEnd(35)} ${typeDesc((saju as any)[k])}`);
 
   // ═══ 3. 매핑 분석 ═══
