@@ -1,7 +1,3 @@
-/**
- * sagyeoksu_data.json을 파싱하여 사격수리 의미 DB(sagyeoksu.db)를 생성한다.
- * 실행: npx tsx src/utils/build-fourframe-db.ts
- */
 import fs from 'fs';
 import { dataPath, openDb, runSql, getSql, closeDb } from './db-helpers.js';
 

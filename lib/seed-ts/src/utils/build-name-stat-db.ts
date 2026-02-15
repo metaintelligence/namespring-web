@@ -1,7 +1,3 @@
-/**
- * name_to_stat_minified_with_hanja.json을 초성별 샤드 SQLite DB로 변환한다.
- * 실행: npx tsx src/utils/build-name-stat-db.ts
- */
 import fs from 'fs';
 import path from 'path';
 import { dataPath, ensureDir, openDb, runSql, closeDb } from './db-helpers.js';

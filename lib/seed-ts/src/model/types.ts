@@ -145,54 +145,26 @@ export interface SajuCompatibility {
   readonly affinityScore: number;
 }
 
-/**
- * saju-ts 분석 결과의 구조화된 요약.
- *
- * **설계 원칙 — serialize-first, transform-as-needed:**
- * - `serialize(SajuAnalysis)`로 saju-ts 전체 필드가 자동 포함됨
- * - seed-ts가 값을 보강/변환하는 필드만 아래에 명시적으로 타입 선언
- * - saju-ts에 새 필드가 추가되면 자동으로 이 객체에 포함됨 (코드 변경 불필요)
- * - 명시된 필드는 원본 대비 보강된 버전 (hangul/hanja, element 파생 등)
- * - 원본 saju-ts 필드는 원래 이름으로도 접근 가능 (예: strengthResult, yongshinResult)
- */
 export interface SajuSummary {
-  // ── seed-ts가 보강/변환하는 필드 (stable contract) ──
-
-  /** 사주 기둥 — hangul/hanja 보강 */
   readonly pillars: {
     readonly year: PillarSummary;
     readonly month: PillarSummary;
     readonly day: PillarSummary;
     readonly hour: PillarSummary;
   };
-  /** 시간 보정 — 보정 전(standard*) + 보정 후(adjusted*) */
   readonly timeCorrection: TimeCorrectionSummary;
-  /** 일주 — element/polarity를 stem 코드에서 파생 */
   readonly dayMaster: { readonly stem: string; readonly element: string; readonly polarity: string };
-  /** 신강/신약 — strengthResult에서 score 평탄화 */
   readonly strength: StrengthSummary;
-  /** 용신 — yongshinResult에서 필드명 정규화 */
   readonly yongshin: YongshinSummary;
-  /** 격국 — gyeokgukResult에서 필드명 정규화 */
   readonly gyeokguk: GyeokgukSummary;
-  /** 오행 분포 — Map에서 Record로 변환됨 */
   readonly ohaengDistribution: Record<string, number>;
-  /** seed-ts가 계산한 부족/과잉 오행 */
   readonly deficientElements: string[];
   readonly excessiveElements: string[];
-  /** 천간 관계 — scoredCheonganRelations의 점수 병합 */
   readonly cheonganRelations: CheonganRelationSummary[];
-  /** 지지 관계 — resolvedJijiRelations 우선 사용 */
   readonly jijiRelations: JijiRelationSummary[];
-  /** 십신 — hiddenStems element 파생, hiddenStemSipseong stem 추출 */
   readonly tenGodAnalysis: TenGodSummary | null;
-  /** 신살 — weightedShinsalHits 우선, grade 파생 */
   readonly shinsalHits: ShinsalHitSummary[];
-  /** 공망 — gongmangVoidBranches에서 rename */
   readonly gongmang: [string, string] | null;
-
-  // ── saju-ts 자동 패스스루 (index signature) ──
-  // saju-ts에 새 필드 추가 시 자동 포함, 코드 변경 불필요
   readonly [key: string]: unknown;
 }
 

@@ -1,7 +1,3 @@
-/**
- * surname_hanja_dict를 읽어 hanja.db의 is_surname 필드를 업데이트한다.
- * 실행: npx tsx src/utils/update-surname-db.ts
- */
 import fs from 'fs';
 import { dataPath, openDb, runSql, getSql, closeDb } from './db-helpers.js';
 

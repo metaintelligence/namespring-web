@@ -217,8 +217,6 @@ export class SeedEngine {
   }
 
   private extractSaju(a: any): SajuSummary {
-    // serialize-first: saju-ts의 모든 필드를 자동 포함 (Map→Object, Set→Array, Class→plain)
-    // 이후 seed-ts가 보강/변환하는 필드만 override
     const base = serialize(a) as Record<string, unknown>;
 
     const pil = a.pillars ?? a.coreResult?.pillars;

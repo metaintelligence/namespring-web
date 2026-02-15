@@ -1,7 +1,3 @@
-/**
- * 한자 사전 파일(name_hanja_dict + radicals.txt)을 파싱하여 hanja.db를 생성한다.
- * 실행: npx tsx src/utils/build-hanja-db.ts
- */
 import fs from 'fs';
 import { dataPath, openDb, runSql, closeDb } from './db-helpers.js';
 
