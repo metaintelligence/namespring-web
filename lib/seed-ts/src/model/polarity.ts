@@ -1,7 +1,6 @@
 export class Polarity {
   static readonly Negative = new Polarity('Negative');
   static readonly Positive = new Polarity('Positive');
-
   private constructor(public readonly english: string) {}
 
   static get(strokes: number): Polarity {

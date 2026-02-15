@@ -13,12 +13,10 @@ import {
 const DIGIT_ELEMENTS = [Element.Water, Element.Wood, Element.Wood, Element.Fire, Element.Fire, Element.Earth, Element.Earth, Element.Metal, Element.Metal, Element.Water];
 function elementFromDigit(s: number): Element { return DIGIT_ELEMENTS[s % 10]; }
 
-export class Frame {
-  public energy: Energy | null = null;
-  constructor(
-    public readonly type: 'won' | 'hyung' | 'lee' | 'jung',
-    public readonly strokeSum: number,
-  ) {}
+export interface Frame {
+  readonly type: 'won' | 'hyung' | 'lee' | 'jung';
+  readonly strokeSum: number;
+  energy: Energy | null;
 }
 
 export class FrameCalculator extends NameCalculator {
@@ -39,28 +37,21 @@ export class FrameCalculator extends NameCalculator {
     const gT = sum(givenNameStrokes);
 
     this.frames = [
-      new Frame('won', sum(padded)),
-      new Frame('hyung', adjustTo81(sT + guSum)),
-      new Frame('lee', adjustTo81(sT + glSum)),
-      new Frame('jung', adjustTo81(sT + gT)),
+      { type: 'won', strokeSum: sum(padded), energy: null },
+      { type: 'hyung', strokeSum: adjustTo81(sT + guSum), energy: null },
+      { type: 'lee', strokeSum: adjustTo81(sT + glSum), energy: null },
+      { type: 'jung', strokeSum: adjustTo81(sT + gT), energy: null },
     ];
   }
 
   visit(ctx: EvalContext): void {
-    for (const f of this.frames) {
-      f.energy = new Energy(Polarity.get(f.strokeSum), elementFromDigit(f.strokeSum));
-    }
-    this.scoreSagyeokSuri(ctx);
-    this.scoreSagyeokOhaeng(ctx);
+    for (const f of this.frames) f.energy = new Energy(Polarity.get(f.strokeSum), elementFromDigit(f.strokeSum));
+    this.scoreFourframeLuck(ctx);
+    this.scoreFourframeElement(ctx);
   }
 
   backward(_ctx: EvalContext): CalculatorPacket {
-    return {
-      signals: [
-        this.signal('SAGYEOK_SURI', _ctx, 1.0),
-        this.signal('SAGYEOK_OHAENG', _ctx, 0.6),
-      ],
-    };
+    return { signals: [this.signal('FOURFRAME_LUCK', _ctx, 1.0), this.signal('FOURFRAME_ELEMENT', _ctx, 0.6)] };
   }
 
   getAnalysis(): AnalysisDetail<FourFrameAnalysis> {
@@ -69,7 +60,7 @@ export class FrameCalculator extends NameCalculator {
     const elScore = Energy.getElementScore(energies);
     return {
       type: this.id,
-      score: Energy.getScore(energies),
+      score: (polScore + elScore) / 2,
       polarityScore: polScore,
       elementScore: elScore,
       data: {
@@ -85,37 +76,30 @@ export class FrameCalculator extends NameCalculator {
     };
   }
 
-  private scoreSagyeokSuri(ctx: EvalContext): void {
+  private scoreFourframeLuck(ctx: EvalContext): void {
     const [won, hyung, lee, jung] = this.frames;
-    const f = (n: number) => ctx.luckyMap.get(n) ?? '';
-    const [wonF, hyeongF, iF, jeongF] = this.frames.map(fr => f(fr.strokeSum));
-
-    const buckets = [bucketFromFortune(wonF), bucketFromFortune(hyeongF)];
-    if (ctx.givenLength > 1) buckets.push(bucketFromFortune(iF));
-    buckets.push(bucketFromFortune(jeongF));
-
+    const fortunes = this.frames.map(fr => ctx.luckyMap.get(fr.strokeSum) ?? '');
+    const buckets = [bucketFromFortune(fortunes[0]), bucketFromFortune(fortunes[1])];
+    if (ctx.givenLength > 1) buckets.push(bucketFromFortune(fortunes[2]));
+    buckets.push(bucketFromFortune(fortunes[3]));
     const score = buckets.reduce((a, b) => a + b, 0);
-    const isPassed = buckets.length > 0 && buckets.every(v => v >= 15);
 
-    this.putInsight(ctx, 'SAGYEOK_SURI', score, isPassed,
-      `${won.strokeSum}/${wonF}-${hyung.strokeSum}/${hyeongF}-${lee.strokeSum}/${iF}-${jung.strokeSum}/${jeongF}`,
+    this.putInsight(ctx, 'FOURFRAME_LUCK', score, buckets.length > 0 && buckets.every(v => v >= 15),
+      this.frames.map((fr, i) => `${fr.strokeSum}/${fortunes[i]}`).join('-'),
       { won: won.strokeSum, hyeong: hyung.strokeSum, i: lee.strokeSum, jeong: jung.strokeSum });
   }
 
-  private scoreSagyeokOhaeng(ctx: EvalContext): void {
+  private scoreFourframeElement(ctx: EvalContext): void {
     const arrangement = [this.frames[2], this.frames[1], this.frames[0]]
       .map(f => elementFromDigit(f.strokeSum).english) as ElementKey[];
     const distribution = distributionFromArrangement(arrangement);
     const adjacencyScore = calculateArrayScore(arrangement, ctx.surnameLength);
     const balanceScore = calculateBalanceScore(distribution);
     const score = (balanceScore + adjacencyScore) / 2;
-    const threshold = ctx.surnameLength === 2 ? 65 : 60;
-
     const isPassed =
       checkFourFrameSuriElement(arrangement, ctx.givenLength) &&
-      !countDominant(distribution) && adjacencyScore >= threshold && score >= 65;
-
-    this.putInsight(ctx, 'SAGYEOK_OHAENG', score, isPassed,
+      !countDominant(distribution) && adjacencyScore >= (ctx.surnameLength === 2 ? 65 : 60) && score >= 65;
+    this.putInsight(ctx, 'FOURFRAME_ELEMENT', score, isPassed,
       arrangement.join('-'), { distribution, adjacencyScore, balanceScore });
   }
 }

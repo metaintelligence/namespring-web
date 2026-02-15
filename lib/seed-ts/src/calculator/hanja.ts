@@ -14,59 +14,49 @@ export class HanjaCalculator extends NameCalculator {
   readonly id = 'hanja';
   private readonly entries: HanjaEntry[];
   private energies: Energy[] = [];
-  private ohaengScore = 0;
-  private eumyangScore = 0;
+  private elementScore = 0;
+  private polarityScore = 0;
 
-  constructor(
-    private surnameEntries: HanjaEntry[],
-    private givenNameEntries: HanjaEntry[],
-  ) {
+  constructor(surnameEntries: HanjaEntry[], givenNameEntries: HanjaEntry[]) {
     super();
     this.entries = [...surnameEntries, ...givenNameEntries];
   }
 
   visit(ctx: EvalContext): void {
-    this.energies = this.entries.map(
-      e => new Energy(Polarity.get(e.strokes), Element.get(e.resource_element)),
-    );
-
+    this.energies = this.entries.map(e => new Energy(Polarity.get(e.strokes), Element.get(e.resource_element)));
     const elArr = this.entries.map(e => e.stroke_element) as ElementKey[];
     const distribution = distributionFromArrangement(elArr);
     const adjacencyScore = calculateArrayScore(elArr, ctx.surnameLength);
     const balanceScore = calculateBalanceScore(distribution);
-    this.ohaengScore = (balanceScore + adjacencyScore) / 2;
-
-    this.putInsight(ctx, 'HOEKSU_OHAENG', this.ohaengScore, balanceScore >= 60,
+    this.elementScore = (balanceScore + adjacencyScore) / 2;
+    this.putInsight(ctx, 'STROKE_ELEMENT', this.elementScore, balanceScore >= 60,
       elArr.join('-'), { distribution, adjacencyScore, balanceScore });
-
     const polArr = this.entries.map(e => Polarity.get(e.strokes).english) as PolarityValue[];
     const pol = computePolarityResult(polArr, ctx.surnameLength);
-    this.eumyangScore = pol.score;
-
-    this.putInsight(ctx, 'HOEKSU_EUMYANG', pol.score, pol.isPassed,
+    this.polarityScore = pol.score;
+    this.putInsight(ctx, 'STROKE_POLARITY', pol.score, pol.isPassed,
       polArr.join(''), { arrangementList: polArr });
   }
 
   backward(ctx: EvalContext): CalculatorPacket {
-    return {
-      signals: [this.signal('HOEKSU_EUMYANG', ctx, 0.6)],
-    };
+    return { signals: [this.signal('STROKE_POLARITY', ctx, 0.6)] };
   }
 
   getAnalysis(): AnalysisDetail<HanjaAnalysis> {
+    const ps = this.polarityScore, es = this.elementScore;
     return {
       type: 'Hanja',
-      score: (this.ohaengScore + this.eumyangScore) / 2,
-      polarityScore: this.eumyangScore,
-      elementScore: this.ohaengScore,
+      score: (es + ps) / 2,
+      polarityScore: ps,
+      elementScore: es,
       data: {
         blocks: this.entries.map((e, i) => ({
           hanja: e.hanja, hangul: e.hangul, strokes: e.strokes,
           resourceElement: e.resource_element, strokeElement: e.stroke_element,
           polarity: this.energies[i]?.polarity.english ?? '',
         })),
-        polarityScore: this.eumyangScore,
-        elementScore: this.ohaengScore,
+        polarityScore: ps,
+        elementScore: es,
       },
     };
   }
@@ -74,5 +64,4 @@ export class HanjaCalculator extends NameCalculator {
   getNameBlocks(): ReadonlyArray<{ readonly entry: HanjaEntry; energy: Energy | null }> {
     return this.entries.map((entry, i) => ({ entry, energy: this.energies[i] ?? null }));
   }
-
 }

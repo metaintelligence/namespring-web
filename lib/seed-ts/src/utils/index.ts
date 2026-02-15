@@ -1,5 +1,5 @@
 import type { HanjaEntry } from '../database/hanja-repository.js';
-import type { EvaluationResult, FrameInsight } from '../calculator/evaluator.js';
+import type { EvaluationResult } from '../calculator/evaluator.js';
 
 export const CHOSEONG = [
   'ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ',
@@ -12,15 +12,12 @@ export const JUNGSEONG = [
 ] as const;
 
 const HANGUL_BASE = 0xAC00;
-const HANGUL_END = 0xD7A3;
-const JUNGSEONG_COUNT = 21;
-const JONGSEONG_COUNT = 28;
 
 export function decomposeHangul(char: string): { onset: string; nucleus: string } | null {
   const code = char.charCodeAt(0) - HANGUL_BASE;
-  if (code < 0 || code > HANGUL_END - HANGUL_BASE) return null;
-  const onset = CHOSEONG[Math.floor(code / (JUNGSEONG_COUNT * JONGSEONG_COUNT))] ?? 'ㅇ';
-  const nucleus = JUNGSEONG[Math.floor((code % (JUNGSEONG_COUNT * JONGSEONG_COUNT)) / JONGSEONG_COUNT)] ?? 'ㅏ';
+  if (code < 0 || code > 0xD7A3 - HANGUL_BASE) return null;
+  const onset = CHOSEONG[Math.floor(code / 588)] ?? 'ㅇ';
+  const nucleus = JUNGSEONG[Math.floor((code % 588) / 28)] ?? 'ㅏ';
   return { onset, nucleus };
 }
 
@@ -42,12 +39,12 @@ export function makeFallbackEntry(hangul: string): HanjaEntry {
 }
 
 export const FRAME_LABELS: Readonly<Record<string, string>> = {
-  SAGYEOK_SURI: '사격수리(81수리)',
-  SAJU_JAWON_BALANCE: '사주 자원 균형',
-  HOEKSU_EUMYANG: '획수 음양',
-  BALEUM_OHAENG: '발음 오행',
-  BALEUM_EUMYANG: '발음 음양',
-  SAGYEOK_OHAENG: '사격 오행',
+  FOURFRAME_LUCK: '사격수리(81수리)',
+  SAJU_ELEMENT_BALANCE: '사주 자원 균형',
+  STROKE_POLARITY: '획수 음양',
+  HANGUL_ELEMENT: '발음 오행',
+  HANGUL_POLARITY: '발음 음양',
+  FOURFRAME_ELEMENT: '사격 오행',
 };
 
 export function buildInterpretation(ev: EvaluationResult): string {
@@ -56,7 +53,7 @@ export function buildInterpretation(ev: EvaluationResult): string {
     ? (score >= 80 ? '종합적으로 매우 우수한 이름입니다.' : score >= 65 ? '종합적으로 좋은 이름입니다.' : '합격 기준을 충족하는 이름입니다.')
     : (score >= 55 ? '보통 수준의 이름입니다.' : '개선 여지가 있는 이름입니다.');
   const warns = categories
-    .filter((c: FrameInsight) => c.frame !== 'SEONGMYEONGHAK' && !c.isPassed && c.score < 50)
-    .map((c: FrameInsight) => `${FRAME_LABELS[c.frame] ?? c.frame} 부분을 점검해 보세요.`);
+    .filter((c) => c.frame !== 'TOTAL' && !c.isPassed && c.score < 50)
+    .map((c) => `${FRAME_LABELS[c.frame] ?? c.frame} 부분을 점검해 보세요.`);
   return [overall, ...warns].join(' ');
 }

@@ -30,11 +30,7 @@ export interface SeedOptions {
   readonly offset?: number;
   readonly schoolPreset?: 'korean' | 'chinese' | 'modern';
   readonly sajuConfig?: Record<string, unknown>;
-  readonly sajuOptions?: {
-    readonly daeunCount?: number;
-    readonly saeunStartYear?: number | null;
-    readonly saeunYearCount?: number;
-  };
+  readonly sajuOptions?: { readonly daeunCount?: number; readonly saeunStartYear?: number | null; readonly saeunYearCount?: number };
 }
 
 export interface SeedResponse {
@@ -43,10 +39,7 @@ export interface SeedResponse {
   readonly saju: SajuSummary;
   readonly candidates: SeedCandidate[];
   readonly totalCount: number;
-  readonly meta: {
-    readonly version: string;
-    readonly timestamp: string;
-  };
+  readonly meta: { readonly version: string; readonly timestamp: string };
 }
 
 export interface SeedCandidate {
@@ -56,13 +49,7 @@ export interface SeedCandidate {
     readonly fullHangul: string;
     readonly fullHanja: string;
   };
-  readonly scores: {
-    readonly total: number;
-    readonly hangul: number;
-    readonly hanja: number;
-    readonly fourFrame: number;
-    readonly saju: number;
-  };
+  readonly scores: Record<'total' | 'hangul' | 'hanja' | 'fourFrame' | 'saju', number>;
   readonly analysis: {
     readonly hangul: HangulAnalysis;
     readonly hanja: HanjaAnalysis;
@@ -125,34 +112,25 @@ export interface SajuCompatibility {
   readonly gishinElement: string | null;
   readonly nameElements: string[];
   readonly yongshinMatchCount: number;
-  readonly yongshinGeneratingCount: number;
   readonly gishinMatchCount: number;
-  readonly gishinOvercomingCount: number;
-  readonly deficiencyFillCount: number;
-  readonly excessiveAvoidCount: number;
   readonly dayMasterSupportScore: number;
   readonly affinityScore: number;
 }
 
 export interface SajuSummary {
-  readonly pillars: {
-    readonly year: PillarSummary;
-    readonly month: PillarSummary;
-    readonly day: PillarSummary;
-    readonly hour: PillarSummary;
-  };
+  readonly pillars: Record<'year' | 'month' | 'day' | 'hour', PillarSummary>;
   readonly timeCorrection: TimeCorrectionSummary;
   readonly dayMaster: { readonly stem: string; readonly element: string; readonly polarity: string };
   readonly strength: StrengthSummary;
   readonly yongshin: YongshinSummary;
-  readonly gyeokguk: GyeokgukSummary;
+  readonly gyeokguk: { readonly type: string; readonly category: string; readonly baseSipseong: string | null; readonly confidence: number; readonly reasoning: string };
   readonly ohaengDistribution: Record<string, number>;
   readonly deficientElements: string[];
   readonly excessiveElements: string[];
   readonly cheonganRelations: CheonganRelationSummary[];
-  readonly jijiRelations: JijiRelationSummary[];
+  readonly jijiRelations: Array<{ readonly type: string; readonly branches: string[]; readonly note: string; readonly outcome: string | null; readonly reasoning: string | null }>;
   readonly tenGodAnalysis: TenGodSummary | null;
-  readonly shinsalHits: ShinsalHitSummary[];
+  readonly shinsalHits: Array<{ readonly type: string; readonly position: string; readonly grade: string; readonly baseWeight: number; readonly positionMultiplier: number; readonly weightedScore: number }>;
   readonly gongmang: [string, string] | null;
   readonly [key: string]: unknown;
 }
@@ -205,14 +183,6 @@ export interface YongshinSummary {
   }>;
 }
 
-export interface GyeokgukSummary {
-  readonly type: string;
-  readonly category: string;
-  readonly baseSipseong: string | null;
-  readonly confidence: number;
-  readonly reasoning: string;
-}
-
 export interface CheonganRelationSummary {
   readonly type: string;
   readonly stems: string[];
@@ -227,14 +197,6 @@ export interface CheonganRelationSummary {
   } | null;
 }
 
-export interface JijiRelationSummary {
-  readonly type: string;
-  readonly branches: string[];
-  readonly note: string;
-  readonly outcome: string | null;
-  readonly reasoning: string | null;
-}
-
 export interface TenGodSummary {
   readonly dayMaster: string;
   readonly byPosition: Record<string, {
@@ -244,13 +206,3 @@ export interface TenGodSummary {
     readonly hiddenStemSipseong: Array<{ readonly stem: string; readonly sipseong: string }>;
   }>;
 }
-
-export interface ShinsalHitSummary {
-  readonly type: string;
-  readonly position: string;
-  readonly grade: string;
-  readonly baseWeight: number;
-  readonly positionMultiplier: number;
-  readonly weightedScore: number;
-}
-

@@ -14,17 +14,16 @@ export class FourFrameOptimizer {
     const out = new Set<string>();
     const current = new Array<number>(nameLength).fill(1);
 
+    const v = this.validNumbers;
     const emit = () => {
-      const padded = [...current];
-      if (padded.length === 1) padded.push(0);
+      const padded = nameLength === 1 ? [current[0], 0] : current;
       const mid = Math.floor(padded.length / 2);
-      const won = adjustTo81(sum(padded));
-      const hyeong = adjustTo81(sT + sum(padded.slice(0, mid)));
+      const won = adjustTo81(sum(padded)), hyeong = adjustTo81(sT + sum(padded.slice(0, mid)));
       const i = adjustTo81(sT + sum(padded.slice(mid)));
       const jeong = adjustTo81(sT + sum(current));
-      if (!this.validNumbers.has(won) || !this.validNumbers.has(hyeong)) return;
-      if (nameLength > 1 && !this.validNumbers.has(i)) return;
-      if (!this.validNumbers.has(jeong)) return;
+      if (!v.has(won) || !v.has(hyeong)) return;
+      if (nameLength > 1 && !v.has(i)) return;
+      if (!v.has(jeong)) return;
       out.add(current.join(','));
     };
 

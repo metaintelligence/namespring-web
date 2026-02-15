@@ -7,26 +7,10 @@ export class Element {
 
   private constructor(public readonly english: string) {}
 
-  static get(name: string): Element {
-    switch (name) {
-      case 'Wood': return Element.Wood;
-      case 'Fire': return Element.Fire;
-      case 'Earth': return Element.Earth;
-      case 'Metal': return Element.Metal;
-      case 'Water': return Element.Water;
-      default: return Element.Earth;
-    }
-  }
+  private static readonly CYCLE = [Element.Wood, Element.Fire, Element.Earth, Element.Metal, Element.Water];
+  static get(name: string): Element { return Element.CYCLE.find(e => e.english === name) ?? Element.Earth; }
 
-  isGenerating(target: Element): boolean {
-    const gen = this === Element.Wood ? Element.Fire : this === Element.Fire ? Element.Earth
-      : this === Element.Earth ? Element.Metal : this === Element.Metal ? Element.Water : Element.Wood;
-    return gen === target;
-  }
-
-  isOvercoming(target: Element): boolean {
-    const over = this === Element.Wood ? Element.Earth : this === Element.Earth ? Element.Water
-      : this === Element.Water ? Element.Fire : this === Element.Fire ? Element.Metal : Element.Wood;
-    return over === target;
-  }
+  private idx(): number { return Element.CYCLE.indexOf(this); }
+  isGenerating(target: Element): boolean { return Element.CYCLE[(this.idx() + 1) % 5] === target; }
+  isOvercoming(target: Element): boolean { return Element.CYCLE[(this.idx() + 2) % 5] === target; }
 }

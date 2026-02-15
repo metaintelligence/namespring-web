@@ -32,7 +32,21 @@ async function loadSajuModule(): Promise<SajuModule | null> {
 }
 
 const MAX_CANDIDATES = 500;
-const OHAENG_CODES = ['WOOD', 'FIRE', 'EARTH', 'METAL', 'WATER'] as const;
+const ELEMENT_CODES = ['WOOD', 'FIRE', 'EARTH', 'METAL', 'WATER'] as const;
+
+function safeArr(v: any): any[] { return Array.isArray(v) ? v : []; }
+function strOrNull(v: any): string | null { return v != null ? String(v) : null; }
+function numPick(obj: any, keys: readonly string[]): Record<string, number> {
+  const o: Record<string, number> = {};
+  for (const k of keys) o[k] = Number(obj?.[k]) || 0;
+  return o;
+}
+
+const TC_KEYS = [
+  'standardYear', 'standardMonth', 'standardDay', 'standardHour', 'standardMinute',
+  'adjustedYear', 'adjustedMonth', 'adjustedDay', 'adjustedHour', 'adjustedMinute',
+  'dstCorrectionMinutes', 'longitudeCorrectionMinutes', 'equationOfTimeMinutes',
+] as const;
 
 const CHEONGAN: Record<string, { h: string; j: string; el: string; pol: string }> = {
   GAP: { h: '갑', j: '甲', el: 'WOOD', pol: 'YANG' },
@@ -102,7 +116,7 @@ function emptySaju(): SajuSummary {
   const ep: PillarSummary = { stem: { code: '', hangul: '', hanja: '' }, branch: { code: '', hangul: '', hanja: '' } };
   return {
     pillars: { year: ep, month: ep, day: ep, hour: ep },
-    timeCorrection: { standardYear: 0, standardMonth: 0, standardDay: 0, standardHour: 0, standardMinute: 0, adjustedYear: 0, adjustedMonth: 0, adjustedDay: 0, adjustedHour: 0, adjustedMinute: 0, dstCorrectionMinutes: 0, longitudeCorrectionMinutes: 0, equationOfTimeMinutes: 0 },
+    timeCorrection: numPick(null, TC_KEYS) as any,
     dayMaster: { stem: '', element: '', polarity: '' },
     strength: { level: '', isStrong: false, totalSupport: 0, totalOppose: 0, deukryeong: 0, deukji: 0, deukse: 0, details: [] },
     yongshin: { element: 'WOOD', heeshin: null, gishin: null, gushin: null, confidence: 0, agreement: '', recommendations: [] },
@@ -209,14 +223,10 @@ export class SeedEngine {
   }
 
   private extractSaju(a: any): SajuSummary {
-    const base = serialize(a) as Record<string, unknown>;
-
-    const pil = a.pillars ?? a.coreResult?.pillars;
-    const cr = a.coreResult;
-    const sr = a.strengthResult;
-    const yr = a.yongshinResult;
-    const gr = a.gyeokgukResult;
-    const tga = a.tenGodAnalysis;
+    const base = serialize(a) as Record<string, unknown>,
+      pil = a.pillars ?? a.coreResult?.pillars,
+      cr = a.coreResult, sr = a.strengthResult,
+      yr = a.yongshinResult, gr = a.gyeokgukResult, tga = a.tenGodAnalysis;
 
     const od: Record<string, number> = {};
     if (a.ohaengDistribution) {
@@ -228,7 +238,7 @@ export class SeedEngine {
     const avg = total / 5;
     const deficient: string[] = [], excessive: string[] = [];
     if (total > 0) {
-      for (const k of OHAENG_CODES) {
+      for (const k of ELEMENT_CODES) {
         const c = od[k] ?? 0;
         if (c === 0 || c <= avg * 0.4) deficient.push(k);
         else if (c >= avg * 2.0) excessive.push(k);
@@ -249,15 +259,11 @@ export class SeedEngine {
         return [pos, {
           cheonganSipseong: String(i.cheonganSipseong ?? ''),
           jijiPrincipalSipseong: String(i.jijiPrincipalSipseong ?? ''),
-          hiddenStems: Array.isArray(i.hiddenStems)
-            ? i.hiddenStems.map((h: any) => {
-                const sc = String(h.stem ?? '');
-                return { stem: sc, element: CHEONGAN[sc]?.el ?? '', ratio: Number(h.ratio ?? (h.days ? h.days / 30 : 0)) || 0 };
-              })
-            : [],
-          hiddenStemSipseong: Array.isArray(i.hiddenStemSipseong)
-            ? i.hiddenStemSipseong.map((h: any) => ({ stem: String(h.entry?.stem ?? h.stem ?? ''), sipseong: String(h.sipseong ?? '') }))
-            : [],
+          hiddenStems: safeArr(i.hiddenStems).map((h: any) => {
+            const sc = String(h.stem ?? '');
+            return { stem: sc, element: CHEONGAN[sc]?.el ?? '', ratio: Number(h.ratio ?? (h.days ? h.days / 30 : 0)) || 0 };
+          }),
+          hiddenStemSipseong: safeArr(i.hiddenStemSipseong).map((h: any) => ({ stem: String(h.entry?.stem ?? h.stem ?? ''), sipseong: String(h.sipseong ?? '') })),
         }];
       })),
     } : null;
@@ -268,57 +274,53 @@ export class SeedEngine {
         position: pos, koreanName: String(pi?.koreanName ?? ''),
         domain: String(pi?.domain ?? ''), agePeriod: String(pi?.agePeriod ?? ''),
         bodyPart: String(pi?.bodyPart ?? ''),
-        sipseong: p.sipseong != null ? String(p.sipseong) : null,
-        familyRelation: p.familyRelation != null ? String(p.familyRelation) : null,
+        sipseong: strOrNull(p.sipseong),
+        familyRelation: strOrNull(p.familyRelation),
       }];
     })) : null;
 
-    const daeunInfo = a.daeunInfo ? (() => {
-      const di = a.daeunInfo;
-      return {
-        isForward: !!di.isForward,
-        firstDaeunStartAge: Number(di.firstDaeunStartAge) || 0,
-        firstDaeunStartMonths: Number(di.firstDaeunStartMonths) || 0,
-        boundaryMode: String(di.boundaryMode ?? ''),
-        warnings: Array.isArray(di.warnings) ? di.warnings.map(String) : [],
-        pillars: (Array.isArray(di.daeunPillars) ? di.daeunPillars : []).map((p: any) => ({
-          stem: String(p.pillar?.cheongan ?? ''), branch: String(p.pillar?.jiji ?? ''),
-          startAge: Number(p.startAge) || 0, endAge: Number(p.endAge) || 0, order: Number(p.order) || 0,
-        })),
-      };
-    })() : null;
+    const di = a.daeunInfo;
+    const daeunInfo = di ? {
+      isForward: !!di.isForward,
+      firstDaeunStartAge: Number(di.firstDaeunStartAge) || 0,
+      firstDaeunStartMonths: Number(di.firstDaeunStartMonths) || 0,
+      boundaryMode: String(di.boundaryMode ?? ''),
+      warnings: safeArr(di.warnings).map(String),
+      pillars: safeArr(di.daeunPillars).map((p: any) => ({
+        stem: String(p.pillar?.cheongan ?? ''), branch: String(p.pillar?.jiji ?? ''),
+        startAge: Number(p.startAge) || 0, endAge: Number(p.endAge) || 0, order: Number(p.order) || 0,
+      })),
+    } : null;
 
-    const wsh = Array.isArray(a.weightedShinsalHits) ? a.weightedShinsalHits : [];
     const gradeFromWeight = (w: number) => w >= 80 ? 'A' : w >= 50 ? 'B' : 'C';
-    const shinsalHits = wsh.length > 0
-      ? wsh.map((w: any) => {
-          const bw = Number(w.baseWeight) || 0;
-          return {
-            type: String(w.hit?.type ?? ''), position: String(w.hit?.position ?? ''),
-            grade: String(w.hit?.grade || '') || gradeFromWeight(bw),
-            baseWeight: bw, positionMultiplier: Number(w.positionMultiplier) || 0, weightedScore: Number(w.weightedScore) || 0,
-          };
-        })
-      : (Array.isArray(a.shinsalHits) ? a.shinsalHits : []).map((h: any) => ({
-          type: String(h.type ?? ''), position: String(h.position ?? ''),
-          grade: String(h.grade || '') || 'C',
-          baseWeight: 0, positionMultiplier: 0, weightedScore: 0,
-        }));
+    const wsh = safeArr(a.weightedShinsalHits);
+    const shinsalHits = (wsh.length > 0 ? wsh : safeArr(a.shinsalHits)).map((item: any) => {
+      const isWeighted = wsh.length > 0;
+      const src = isWeighted ? item.hit : item;
+      const bw = isWeighted ? Number(item.baseWeight) || 0 : 0;
+      return {
+        type: String(src?.type ?? ''), position: String(src?.position ?? ''),
+        grade: String(src?.grade || '') || (isWeighted ? gradeFromWeight(bw) : 'C'),
+        baseWeight: bw, positionMultiplier: isWeighted ? Number(item.positionMultiplier) || 0 : 0,
+        weightedScore: isWeighted ? Number(item.weightedScore) || 0 : 0,
+      };
+    });
 
-    const rjr = Array.isArray(a.resolvedJijiRelations) ? a.resolvedJijiRelations : [];
-    const jijiRelations = rjr.length > 0
-      ? rjr.map((r: any) => ({
-          type: String(r.hit?.type ?? ''), branches: toStrArr(r.hit?.members), note: String(r.hit?.note ?? ''),
-          outcome: r.outcome != null ? String(r.outcome) : null, reasoning: r.reasoning != null ? String(r.reasoning) : null,
-        }))
-      : (Array.isArray(a.jijiRelations) ? a.jijiRelations : []).map((r: any) => ({
-          type: String(r.type ?? ''), branches: toStrArr(r.members), note: String(r.note ?? ''),
-          outcome: null, reasoning: null,
-        }));
+    const rjr = safeArr(a.resolvedJijiRelations);
+    const jijiRelations = (rjr.length > 0 ? rjr : safeArr(a.jijiRelations)).map((item: any) => {
+      const isResolved = rjr.length > 0;
+      const src = isResolved ? item.hit : item;
+      return {
+        type: String(src?.type ?? (item.type ?? '')), branches: toStrArr(src?.members ?? item.members),
+        note: String(src?.note ?? (item.note ?? '')),
+        outcome: isResolved ? strOrNull(item.outcome) : null,
+        reasoning: isResolved ? strOrNull(item.reasoning) : null,
+      };
+    });
 
     const gm = a.gongmangVoidBranches;
 
-    const scoredCR = Array.isArray(a.scoredCheonganRelations) ? a.scoredCheonganRelations : [];
+    const scoredCR = safeArr(a.scoredCheonganRelations);
     const crScoreMap = new Map<string, any>();
     for (const s of scoredCR) {
       const key = String(s.hit?.type ?? '') + ':' + toStrArr(s.hit?.members).sort().join(',');
@@ -328,15 +330,7 @@ export class SeedEngine {
     return {
       ...base,
       pillars: { year: mapPillar(pil?.year), month: mapPillar(pil?.month), day: mapPillar(pil?.day), hour: mapPillar(pil?.hour) },
-      timeCorrection: {
-        standardYear: Number(cr?.standardYear) || 0, standardMonth: Number(cr?.standardMonth) || 0,
-        standardDay: Number(cr?.standardDay) || 0, standardHour: Number(cr?.standardHour) || 0, standardMinute: Number(cr?.standardMinute) || 0,
-        adjustedYear: Number(cr?.adjustedYear) || 0, adjustedMonth: Number(cr?.adjustedMonth) || 0,
-        adjustedDay: Number(cr?.adjustedDay) || 0, adjustedHour: Number(cr?.adjustedHour) || 0, adjustedMinute: Number(cr?.adjustedMinute) || 0,
-        dstCorrectionMinutes: Number(cr?.dstCorrectionMinutes) || 0,
-        longitudeCorrectionMinutes: Number(cr?.longitudeCorrectionMinutes) || 0,
-        equationOfTimeMinutes: Number(cr?.equationOfTimeMinutes) || 0,
-      },
+      timeCorrection: numPick(cr, TC_KEYS) as any,
       dayMaster: {
         stem: dmCode,
         element: sr?.dayMasterElement ? String(sr.dayMasterElement) : (dmi?.el ?? ''),
@@ -346,33 +340,33 @@ export class SeedEngine {
         level: String(sr?.level ?? ''), isStrong: !!sr?.isStrong,
         totalSupport: Number(sr?.score?.totalSupport) || 0, totalOppose: Number(sr?.score?.totalOppose) || 0,
         deukryeong: Number(sr?.score?.deukryeong) || 0, deukji: Number(sr?.score?.deukji) || 0, deukse: Number(sr?.score?.deukse) || 0,
-        details: Array.isArray(sr?.details) ? sr.details.map(String) : [],
+        details: safeArr(sr?.details).map(String),
       },
       yongshin: {
         element: String(yr?.finalYongshin ?? ''),
-        heeshin: yr?.finalHeesin != null ? String(yr.finalHeesin) : null,
-        gishin: yr?.gisin != null ? String(yr.gisin) : null,
-        gushin: yr?.gusin != null ? String(yr.gusin) : null,
+        heeshin: strOrNull(yr?.finalHeesin),
+        gishin: strOrNull(yr?.gisin),
+        gushin: strOrNull(yr?.gusin),
         confidence: Number(yr?.finalConfidence) || 0,
         agreement: String(yr?.agreement ?? ''),
-        recommendations: Array.isArray(yr?.recommendations) ? yr.recommendations.map((r: any) => ({
-          type: String(r.type ?? ''), primaryElement: String(r.primaryElement ?? ''),
-          secondaryElement: r.secondaryElement != null ? String(r.secondaryElement) : null,
-          confidence: Number(r.confidence) || 0, reasoning: String(r.reasoning ?? ''),
-        })) : [],
+        recommendations: safeArr(yr?.recommendations).map(({ type: t, primaryElement: pe, secondaryElement: se, confidence: c, reasoning: rs }: any) => ({
+          type: String(t ?? ''), primaryElement: String(pe ?? ''),
+          secondaryElement: strOrNull(se),
+          confidence: Number(c) || 0, reasoning: String(rs ?? ''),
+        })),
       },
       gyeokguk: {
         type: String(gr?.type ?? ''), category: String(gr?.category ?? ''),
-        baseSipseong: gr?.baseSipseong != null ? String(gr.baseSipseong) : null,
+        baseSipseong: strOrNull(gr?.baseSipseong),
         confidence: Number(gr?.confidence) || 0, reasoning: String(gr?.reasoning ?? ''),
       },
       ohaengDistribution: od, deficientElements: deficient, excessiveElements: excessive,
-      cheonganRelations: (Array.isArray(a.cheonganRelations) ? a.cheonganRelations : []).map((r: any) => {
+      cheonganRelations: safeArr(a.cheonganRelations).map((r: any) => {
         const key = String(r.type ?? '') + ':' + toStrArr(r.members).sort().join(',');
         const sc = crScoreMap.get(key);
         return {
           type: String(r.type ?? ''), stems: toStrArr(r.members),
-          resultElement: r.resultOhaeng != null ? String(r.resultOhaeng) : null, note: String(r.note ?? ''),
+          resultElement: strOrNull(r.resultOhaeng), note: String(r.note ?? ''),
           score: sc ? {
             baseScore: Number(sc.baseScore) || 0, adjacencyBonus: Number(sc.adjacencyBonus) || 0,
             outcomeMultiplier: Number(sc.outcomeMultiplier) || 0, finalScore: Number(sc.finalScore) || 0,
@@ -380,7 +374,7 @@ export class SeedEngine {
           } : null,
         };
       }),
-      hapHwaEvaluations: (Array.isArray(a.hapHwaEvaluations) ? a.hapHwaEvaluations : []).map((e: any) => ({
+      hapHwaEvaluations: safeArr(a.hapHwaEvaluations).map((e: any) => ({
         stem1: String(e.stem1 ?? ''), stem2: String(e.stem2 ?? ''),
         position1: String(e.position1 ?? ''), position2: String(e.position2 ?? ''),
         resultElement: String(e.resultOhaeng ?? ''), state: String(e.state ?? ''),
@@ -390,19 +384,19 @@ export class SeedEngine {
       jijiRelations, sibiUnseong,
       gongmang: Array.isArray(gm) && gm.length >= 2 ? [String(gm[0]), String(gm[1])] as [string, string] : null,
       tenGodAnalysis, shinsalHits,
-      shinsalComposites: (Array.isArray(a.shinsalComposites) ? a.shinsalComposites : []).map((c: any) => ({
+      shinsalComposites: safeArr(a.shinsalComposites).map((c: any) => ({
         patternName: String(c.patternName ?? ''), interactionType: String(c.interactionType ?? ''),
         interpretation: String(c.interpretation ?? ''), bonusScore: Number(c.bonusScore) || 0,
       })),
       palaceAnalysis, daeunInfo,
-      saeunPillars: (Array.isArray(a.saeunPillars) ? a.saeunPillars : []).map((s: any) => ({
+      saeunPillars: safeArr(a.saeunPillars).map((s: any) => ({
         year: Number(s.year) || 0, stem: String(s.pillar?.cheongan ?? ''), branch: String(s.pillar?.jiji ?? ''),
       })),
-      trace: (Array.isArray(a.trace) ? a.trace : []).map((t: any) => ({
+      trace: safeArr(a.trace).map((t: any) => ({
         key: String(t.key ?? ''), summary: String(t.summary ?? ''),
-        evidence: Array.isArray(t.evidence) ? t.evidence.map(String) : [],
-        citations: Array.isArray(t.citations) ? t.citations.map(String) : [],
-        reasoning: Array.isArray(t.reasoning) ? t.reasoning.map(String) : [],
+        evidence: safeArr(t.evidence).map(String),
+        citations: safeArr(t.citations).map(String),
+        reasoning: safeArr(t.reasoning).map(String),
         confidence: typeof t.confidence === 'number' ? t.confidence : null,
       })),
     } as SajuSummary;
@@ -423,10 +417,8 @@ export class SeedEngine {
     if (s.tenGodAnalysis?.byPosition) {
       const gc: Record<string, number> = { friend: 0, output: 0, wealth: 0, authority: 0, resource: 0 };
       for (const info of Object.values(s.tenGodAnalysis.byPosition)) {
-        const g1 = SIPSEONG_GROUP[info.cheonganSipseong];
-        if (g1) gc[g1]++;
-        const g2 = SIPSEONG_GROUP[info.jijiPrincipalSipseong];
-        if (g2) gc[g2]++;
+        const g = SIPSEONG_GROUP[info.cheonganSipseong]; if (g) gc[g]++;
+        const g2 = SIPSEONG_GROUP[info.jijiPrincipalSipseong]; if (g2) gc[g2]++;
       }
       tenGod = { groupCounts: gc };
     }
@@ -439,10 +431,8 @@ export class SeedEngine {
         yongshin: {
           finalYongshin: y.element, finalHeesin: y.heeshin, gisin: y.gishin, gusin: y.gushin,
           finalConfidence: y.confidence,
-          recommendations: y.recommendations.map(r => ({
-            type: r.type, primaryElement: r.primaryElement,
-            secondaryElement: r.secondaryElement,
-            confidence: r.confidence, reasoning: r.reasoning,
+          recommendations: y.recommendations.map(({ type, primaryElement, secondaryElement, confidence, reasoning }) => ({
+            type, primaryElement, secondaryElement, confidence, reasoning,
           })),
         },
         tenGod,
@@ -466,19 +456,18 @@ export class SeedEngine {
     };
     const ev = evaluateName([hangul, hanja, frame, saju], ctx);
     const cm = ev.categoryMap;
-    const all = [...se, ...ge];
     const r = (v: number) => Math.round(v * 10) / 10;
     return {
       name: {
         surname: se.map(toCharDetail), givenName: ge.map(toCharDetail),
-        fullHangul: all.map(e => e.hangul).join(''), fullHanja: all.map(e => e.hanja).join('')
+        fullHangul: [...se, ...ge].map(e => e.hangul).join(''), fullHanja: [...se, ...ge].map(e => e.hanja).join('')
       },
       scores: {
         total: r(ev.score),
-        hangul: r(((cm.BALEUM_OHAENG?.score ?? 0) + (cm.BALEUM_EUMYANG?.score ?? 0)) / 2),
-        hanja: r(((cm.HOEKSU_EUMYANG?.score ?? 0) + (cm.SAGYEOK_OHAENG?.score ?? 0)) / 2),
-        fourFrame: r(cm.SAGYEOK_SURI?.score ?? 0),
-        saju: r(cm.SAJU_JAWON_BALANCE?.score ?? 0)
+        hangul: r(((cm.HANGUL_ELEMENT?.score ?? 0) + (cm.HANGUL_POLARITY?.score ?? 0)) / 2),
+        hanja: r(((cm.STROKE_POLARITY?.score ?? 0) + (cm.FOURFRAME_ELEMENT?.score ?? 0)) / 2),
+        fourFrame: r(cm.FOURFRAME_LUCK?.score ?? 0),
+        saju: r(cm.SAJU_ELEMENT_BALANCE?.score ?? 0)
       },
       analysis: {
         hangul: hangul.getAnalysis().data, hanja: hanja.getAnalysis().data,

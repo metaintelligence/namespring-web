@@ -1,4 +1,3 @@
-import type { ParamsObject } from 'sql.js';
 import { SqliteRepository } from './hanja-repository.js';
 
 export interface FourframeMeaningEntry {
@@ -12,7 +11,7 @@ export class FourframeRepository extends SqliteRepository<FourframeMeaningEntry>
   }
 
   async findAll(limit = 200): Promise<FourframeMeaningEntry[]> {
-    return this.query(`SELECT number, lucky_level FROM sagyeoksu_meanings ORDER BY number ASC LIMIT ?`, [limit], (row: ParamsObject) => ({
+    return this.query(`SELECT number, lucky_level FROM sagyeoksu_meanings ORDER BY number ASC LIMIT ?`, [limit], (row) => ({
       number: Number(row.number ?? 0),
       lucky_level: row.lucky_level != null ? String(row.lucky_level) : null,
     }));

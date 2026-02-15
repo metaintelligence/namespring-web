@@ -1,4 +1,4 @@
-import initSqlJs, { type BindParams, type Database, type ParamsObject, type SqlValue } from 'sql.js';
+import initSqlJs, { type BindParams, type Database, type ParamsObject } from 'sql.js';
 
 export abstract class SqliteRepository<T> {
   protected db: Database | null = null;
@@ -16,11 +16,7 @@ export abstract class SqliteRepository<T> {
     this.db = new SQL.Database(new Uint8Array(await res.arrayBuffer()));
   }
 
-  protected query(
-    sql: string,
-    params: BindParams,
-    mapRow: (row: ParamsObject) => T,
-  ): T[] {
+  protected query(sql: string, params: BindParams, mapRow: (row: ParamsObject) => T): T[] {
     if (!this.db) throw new Error('DB not initialized');
     const stmt = this.db.prepare(sql);
     stmt.bind(params);
@@ -35,7 +31,6 @@ export abstract class SqliteRepository<T> {
     this.db = null;
   }
 }
-
 export interface HanjaEntry {
   readonly id: number;
   readonly hangul: string;
@@ -49,7 +44,6 @@ export interface HanjaEntry {
   readonly radical: string;
   readonly is_surname: boolean;
 }
-
 export class HanjaRepository extends SqliteRepository<HanjaEntry> {
   constructor() {
     super('/data/hanja.db');

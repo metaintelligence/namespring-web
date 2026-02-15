@@ -8,9 +8,7 @@ export interface CalculatorSignal {
   weight: number;
 }
 
-export interface CalculatorPacket {
-  signals: CalculatorSignal[];
-}
+export interface CalculatorPacket { signals: CalculatorSignal[] }
 
 export interface AnalysisDetail<T = unknown> {
   readonly type: string;
@@ -21,16 +19,19 @@ export interface AnalysisDetail<T = unknown> {
 }
 
 export type EvalFrame =
-  | 'SEONGMYEONGHAK'
-  | 'SAGYEOK_SURI'
-  | 'SAJU_JAWON_BALANCE'
-  | 'HOEKSU_EUMYANG'
-  | 'BALEUM_OHAENG'
-  | 'BALEUM_EUMYANG'
-  | 'SAGYEOK_OHAENG'
-  | 'HOEKSU_OHAENG'
-  | 'JAWON_OHAENG'
-  | 'EUMYANG';
+  | 'TOTAL'
+  | 'FOURFRAME_LUCK'
+  | 'SAJU_ELEMENT_BALANCE'
+  | 'STROKE_POLARITY'
+  | 'HANGUL_ELEMENT'
+  | 'HANGUL_POLARITY'
+  | 'FOURFRAME_ELEMENT'
+  | 'STROKE_ELEMENT';
+
+export const ALL_FRAMES: readonly EvalFrame[] = [
+  'TOTAL', 'FOURFRAME_LUCK', 'SAJU_ELEMENT_BALANCE', 'STROKE_POLARITY',
+  'HANGUL_ELEMENT', 'HANGUL_POLARITY', 'FOURFRAME_ELEMENT', 'STROKE_ELEMENT',
+] as const;
 
 export interface FrameInsight {
   frame: EvalFrame;
@@ -83,15 +84,12 @@ export abstract class NameCalculator {
   }
 }
 
-const STRICT_FRAMES: EvalFrame[] = [
-  'SAGYEOK_SURI', 'SAJU_JAWON_BALANCE', 'HOEKSU_EUMYANG',
-  'BALEUM_OHAENG', 'BALEUM_EUMYANG', 'SAGYEOK_OHAENG',
-];
+export const STRICT_FRAMES: readonly EvalFrame[] = ALL_FRAMES.slice(1, 7) as EvalFrame[];
 
-const RELAXABLE = new Set<EvalFrame>(STRICT_FRAMES.filter(f => f !== 'SAJU_JAWON_BALANCE'));
+const RELAXABLE = new Set<EvalFrame>(STRICT_FRAMES.filter(f => f !== 'SAJU_ELEMENT_BALANCE'));
 
 function extractSajuPriority(ctx: EvalContext): number {
-  const si = ctx.insights.SAJU_JAWON_BALANCE;
+  const si = ctx.insights.SAJU_ELEMENT_BALANCE;
   if (!si) return 0;
 
   const d = si.details as Record<string, any>;
@@ -110,7 +108,7 @@ function extractSajuPriority(ctx: EvalContext): number {
 }
 
 function frameWeightMultiplier(frame: string, sp: number): number {
-  if (frame === 'SAJU_JAWON_BALANCE') return 1 + sp * 0.45;
+  if (frame === 'SAJU_ELEMENT_BALANCE') return 1 + sp * 0.45;
   if (RELAXABLE.has(frame as EvalFrame)) return 1 - sp * 0.3;
   return 1;
 }
@@ -141,8 +139,8 @@ export function evaluateName(
 
   let isPassed: boolean;
   if (adaptive) {
-    const sI = getInsight(ctx, 'SAJU_JAWON_BALANCE');
-    const fI = getInsight(ctx, 'SAGYEOK_SURI');
+    const sI = getInsight(ctx, 'SAJU_ELEMENT_BALANCE');
+    const fI = getInsight(ctx, 'FOURFRAME_LUCK');
     isPassed = sI.isPassed
       && fI.score >= 35
       && score >= threshold
@@ -152,8 +150,8 @@ export function evaluateName(
     isPassed = STRICT_FRAMES.every(f => getInsight(ctx, f).isPassed) && score >= 60;
   }
 
-  (ctx.insights as Record<string, FrameInsight>)['SEONGMYEONGHAK'] = {
-    frame: 'SEONGMYEONGHAK', score, isPassed, label: 'ROOT',
+  (ctx.insights as Record<string, FrameInsight>)['TOTAL'] = {
+    frame: 'TOTAL', score, isPassed, label: 'ROOT',
     details: {
       contributions: Object.fromEntries(adjusted.map(s => [s.frame, {
         rawScore: s.score,
@@ -175,20 +173,13 @@ export function evaluateName(
   };
 
   const cm: Record<string, FrameInsight> = {};
-  for (const f of [
-    'SEONGMYEONGHAK', 'SAGYEOK_SURI', 'SAJU_JAWON_BALANCE',
-    'HOEKSU_EUMYANG', 'BALEUM_OHAENG', 'BALEUM_EUMYANG',
-    'SAGYEOK_OHAENG', 'HOEKSU_OHAENG',
-  ] as EvalFrame[]) cm[f] = getInsight(ctx, f);
+  for (const f of ALL_FRAMES) cm[f] = getInsight(ctx, f);
 
-  const sm = cm['SEONGMYEONGHAK'];
+  const sm = cm['TOTAL'];
   return {
     score: sm.score,
     isPassed: sm.isPassed,
     categoryMap: cm,
-    categories: ([
-      'SEONGMYEONGHAK', 'SAGYEOK_SURI', 'SAJU_JAWON_BALANCE',
-      'HOEKSU_EUMYANG', 'BALEUM_OHAENG', 'BALEUM_EUMYANG', 'SAGYEOK_OHAENG',
-    ] as EvalFrame[]).map(f => cm[f]),
+    categories: ALL_FRAMES.slice(0, 7).map(f => cm[f]),
   };
 }

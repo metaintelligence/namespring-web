@@ -1,15 +1,7 @@
 import { Polarity } from './polarity.js';
 import type { Element } from './element.js';
-
 export class Energy {
-  constructor(
-    public polarity: Polarity,
-    public element: Element,
-  ) {}
-
-  static getScore(energies: Energy[]): number {
-    return Energy.getPolarityScore(energies) * 0.5 + Energy.getElementScore(energies) * 0.5;
-  }
+  constructor(public readonly polarity: Polarity, public readonly element: Element) {}
 
   static getPolarityScore(energies: Energy[]): number {
     let sum = 0;

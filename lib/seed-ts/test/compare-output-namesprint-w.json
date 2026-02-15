@@ -1,6 +1,6 @@
 {
   "project": "namesprint-w",
-  "timestamp": "2026-02-15T12:35:13.336Z",
+  "timestamp": "2026-02-15T13:12:36.101Z",
   "birthInfo": {
     "year": 1986,
     "month": 4,
@@ -150,11 +150,7 @@
           "Wood"
         ],
         "yongshinMatchCount": 1,
-        "yongshinGeneratingCount": 0,
         "gishinMatchCount": 0,
-        "gishinOvercomingCount": 0,
-        "deficiencyFillCount": 0,
-        "excessiveAvoidCount": 0,
         "dayMasterSupportScore": 5.8847736625514315,
         "affinityScore": 38.68732075476788
       }
