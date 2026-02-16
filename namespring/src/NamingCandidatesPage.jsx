@@ -6,6 +6,10 @@ function getDisplayName(candidate) {
   return `${fullHangul} (${fullHanja})`;
 }
 
+function getFullHangul(candidate) {
+  return candidate?.fullHangul || candidate?.namingReport?.name?.fullHangul || '';
+}
+
 function formatScore(value) {
   const score = Number(value);
   if (!Number.isFinite(score)) return '0.0';
@@ -22,6 +26,7 @@ function NamingCandidatesPage({ entryUserInfo, onRecommendAsync, onLoadCurrentSp
   const [isCurrentLoading, setIsCurrentLoading] = useState(true);
   const [error, setError] = useState('');
   const [sortMode, setSortMode] = useState('popularity');
+  const [searchQuery, setSearchQuery] = useState('');
   const [candidates, setCandidates] = useState([]);
   const [currentSpringReport, setCurrentSpringReport] = useState(null);
 
@@ -37,6 +42,7 @@ function NamingCandidatesPage({ entryUserInfo, onRecommendAsync, onLoadCurrentSp
       }
 
       setSortMode('popularity');
+      setSearchQuery('');
       setError('');
       setCandidates([]);
       setCurrentSpringReport(null);
@@ -73,8 +79,14 @@ function NamingCandidatesPage({ entryUserInfo, onRecommendAsync, onLoadCurrentSp
     };
   }, [entryUserInfo, onRecommendAsync, onLoadCurrentSpringReport]);
 
+  const filteredCandidates = useMemo(() => {
+    const keyword = searchQuery.trim();
+    if (!keyword) return candidates;
+    return candidates.filter((candidate) => getFullHangul(candidate).includes(keyword));
+  }, [candidates, searchQuery]);
+
   const sortedCandidates = useMemo(() => {
-    return [...candidates].sort((a, b) => {
+    return [...filteredCandidates].sort((a, b) => {
       if (sortMode === 'popularity') {
         const aRank = getPopularityRank(a);
         const bRank = getPopularityRank(b);
@@ -82,9 +94,15 @@ function NamingCandidatesPage({ entryUserInfo, onRecommendAsync, onLoadCurrentSp
         const safeB = bRank ?? Number.POSITIVE_INFINITY;
         if (safeA !== safeB) return safeA - safeB;
       }
+      if (sortMode === 'hangul') {
+        const aName = getFullHangul(a);
+        const bName = getFullHangul(b);
+        const compared = aName.localeCompare(bName, 'ko-KR');
+        if (compared !== 0) return compared;
+      }
       return Number(b?.finalScore ?? 0) - Number(a?.finalScore ?? 0);
     });
-  }, [candidates, sortMode]);
+  }, [filteredCandidates, sortMode]);
 
   const scoreRangeText = useMemo(() => {
     if (!candidates.length) return '-';
@@ -163,7 +181,7 @@ function NamingCandidatesPage({ entryUserInfo, onRecommendAsync, onLoadCurrentSp
           </div>
 
           <div className="rounded-xl border border-[var(--ns-border)] bg-[var(--ns-surface-soft)] p-3">
-            <p className="text-xs font-black text-[var(--ns-muted)] mb-2">후보 요약</p>
+            <p className="text-xs font-black text-[var(--ns-muted)] mb-2">추천하는 이름들을 찾았어요</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-lg border border-[var(--ns-border)] bg-[var(--ns-surface)] px-3 py-2">
                 <p className="text-[11px] font-black text-[var(--ns-muted)]">총점 범위</p>
@@ -177,7 +195,7 @@ function NamingCandidatesPage({ entryUserInfo, onRecommendAsync, onLoadCurrentSp
           </div>
 
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-black text-[var(--ns-muted)]">총 {candidates.length}개 후보</p>
+            <p className="text-sm font-black text-[var(--ns-muted)]">총 {sortedCandidates.length}개</p>
             <div className="flex items-center gap-2">
               <label htmlFor="candidate-sort" className="text-xs font-black text-[var(--ns-muted)]">정렬</label>
               <select
@@ -188,8 +206,21 @@ function NamingCandidatesPage({ entryUserInfo, onRecommendAsync, onLoadCurrentSp
               >
                 <option value="score">점수순</option>
                 <option value="popularity">인기도순</option>
+                <option value="hangul">가나다순</option>
               </select>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-[var(--ns-border)] bg-[var(--ns-surface-soft)] px-3 py-2">
+            <label htmlFor="candidate-search" className="text-[11px] font-black text-[var(--ns-muted)] block mb-1">이름 검색</label>
+            <input
+              id="candidate-search"
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="한글 이름 입력"
+              className="w-full px-3 py-2 rounded-lg border border-[var(--ns-border)] bg-[var(--ns-surface)] text-sm font-semibold text-[var(--ns-text)]"
+            />
           </div>
 
           {isLoading && (
