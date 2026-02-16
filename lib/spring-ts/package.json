@@ -5,7 +5,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test:golden": "npx tsx test/compare-output.ts"
   },
   "dependencies": {
     "sql.js": "^1.14.0",
