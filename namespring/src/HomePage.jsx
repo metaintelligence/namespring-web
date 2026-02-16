@@ -5,6 +5,7 @@ import NamingResultRenderer from './NamingResultRenderer';
 function HomeTile({ title, className, onClick }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`bg-[var(--ns-surface)] border border-[var(--ns-border)] rounded-[2.2rem] p-5 shadow-xl hover:translate-y-[-2px] transition-all text-left ${className}`}
     >
@@ -16,7 +17,7 @@ function HomeTile({ title, className, onClick }) {
   );
 }
 
-function HomePage({ entryUserInfo, onAnalyzeAsync, onOpenReport }) {
+function HomePage({ entryUserInfo, onAnalyzeAsync, onOpenReport, onOpenNamingCandidates, onOpenEntry }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [previewResult, setPreviewResult] = useState(null);
   const [analyzeError, setAnalyzeError] = useState('');
@@ -72,7 +73,13 @@ function HomePage({ entryUserInfo, onAnalyzeAsync, onOpenReport }) {
             </div>
           )}
           {!isAnalyzing && !analyzeError && previewResult && (
-            <NamingResultRenderer namingResult={previewResult} />
+            <button
+              type="button"
+              onClick={onOpenEntry}
+              className="h-full w-full block text-left rounded-[1.6rem] overflow-hidden"
+            >
+              <NamingResultRenderer namingResult={previewResult} />
+            </button>
           )}
           {!isAnalyzing && !analyzeError && !previewResult && (
             <div className="h-full w-full rounded-[1.6rem] border border-dashed border-[var(--ns-border)] bg-[var(--ns-surface-soft)] flex items-center justify-center text-center">
@@ -83,7 +90,7 @@ function HomePage({ entryUserInfo, onAnalyzeAsync, onOpenReport }) {
 
         <div className="grid grid-cols-2 gap-4">
           <HomeTile title="이름 평가 보고서" className="h-44 md:h-52" onClick={onOpenReport} />
-          <HomeTile title="작명하기" className="h-44 md:h-52" onClick={() => {}} />
+          <HomeTile title="작명하기" className="h-44 md:h-52" onClick={onOpenNamingCandidates} />
           <HomeTile title="고마움 전달하기" className="h-44 md:h-52" onClick={() => {}} />
           <HomeTile title="이름봄 정보" className="h-44 md:h-52" onClick={() => {}} />
         </div>
