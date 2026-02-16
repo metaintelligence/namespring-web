@@ -1,0 +1,3 @@
+import { type DayBranchCompatibility, type DayMasterCompatibility, type OhaengComplementResult, type ShinsalMatchResult, type SipseongCrossResult } from '../domain/Compatibility.js';
+export declare function computeTotalScore(dayMaster: DayMasterCompatibility, dayBranch: DayBranchCompatibility, ohaeng: OhaengComplementResult, sipseong: SipseongCrossResult, shinsal: ShinsalMatchResult): number;
+//# sourceMappingURL=CompatibilityScoring.d.ts.map

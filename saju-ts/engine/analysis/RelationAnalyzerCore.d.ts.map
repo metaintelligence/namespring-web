@@ -1,0 +1,1 @@
+{"version":3,"file":"RelationAnalyzerCore.d.ts","sourceRoot":"","sources":["../../../src/engine/analysis/RelationAnalyzerCore.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,SAAS,EAAE,MAAM,2BAA2B,CAAC;AACtD,OAAO,EAAE,eAAe,EAAoB,MAAM,2BAA2B,CAAC;AA6B9E,wBAAgB,sBAAsB,CAAC,OAAO,EAAE,SAAS,GAAG,eAAe,EAAE,CA+B5E;AAED,qBAAa,gBAAgB;IAC3B,OAAO,CAAC,OAAO,EAAE,SAAS,GAAG,eAAe,EAAE;CAG/C"}

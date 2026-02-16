@@ -1,0 +1,1 @@
+{"version":3,"file":"SaeunCalculator.d.ts","sourceRoot":"","sources":["../../../src/engine/luck/SaeunCalculator.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAsB,WAAW,EAAE,WAAW,EAAE,MAAM,2BAA2B,CAAC;AAe9F,eAAO,MAAM,eAAe;oCACL,MAAM,UAAS,MAAM,KAAQ,WAAW,EAAE;6BAIjD,MAAM,KAAG,WAAW;sCAK1B,MAAM,SACL,MAAM,OACR,MAAM,SACL,MAAM,WACJ,MAAM,KACb,MAAM;iCAKS,MAAM,KAAG,WAAW,EAAE;CAchC,CAAC"}

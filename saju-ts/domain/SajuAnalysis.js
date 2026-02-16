@@ -1,0 +1,22 @@
+export const ANALYSIS_KEYS = {
+    STRENGTH: 'strength',
+    YONGSHIN: 'yongshin',
+    GYEOKGUK: 'gyeokguk',
+    SIBI_UNSEONG: 'sibiUnseong',
+    GONGMANG: 'gongmang',
+    SHINSAL: 'shinsal',
+    DAEUN: 'daeun',
+    SAEUN: 'saeun',
+    CHEONGAN_RELATIONS: 'cheonganRelations',
+    HAPWHA: 'hapHwa',
+    RESOLVED_JIJI: 'resolvedJijiRelations',
+    SCORED_CHEONGAN: 'scoredCheonganRelations',
+    WEIGHTED_SHINSAL: 'weightedShinsal',
+    SHINSAL_COMPOSITES: 'shinsalComposites',
+    PALACE: 'palace',
+    TRACE: 'trace',
+    OHAENG_DISTRIBUTION: 'ohaengDistribution',
+    TEN_GODS: 'tenGods',
+    HIDDEN_STEMS: 'hiddenStems',
+};
+//# sourceMappingURL=SajuAnalysis.js.map

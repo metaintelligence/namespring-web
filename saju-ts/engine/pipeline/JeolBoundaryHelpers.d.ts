@@ -1,0 +1,2 @@
+export declare function calculateDaysSinceJeol(standardYear: number, standardMonth: number, standardDay: number, standardHour: number, standardMinute: number): number | null;
+//# sourceMappingURL=JeolBoundaryHelpers.d.ts.map

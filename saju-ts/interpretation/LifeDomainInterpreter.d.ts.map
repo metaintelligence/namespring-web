@@ -1,0 +1,1 @@
+{"version":3,"file":"LifeDomainInterpreter.d.ts","sourceRoot":"","sources":["../../src/interpretation/LifeDomainInterpreter.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,YAAY,EAAE,MAAM,2BAA2B,CAAC;AAC9D,OAAO,KAAK,EAAE,aAAa,EAAE,MAAM,uBAAuB,CAAC;AAM3D,YAAY,EAAE,aAAa,EAAE,MAAM,uBAAuB,CAAC;AAE3D,wBAAgB,oBAAoB,CAAC,QAAQ,EAAE,YAAY,GAAG,aAAa,EAAE,CAO5E"}
