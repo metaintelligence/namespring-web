@@ -12,7 +12,16 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(__dirname, '../../../namespring/public/data');
-const WASM_PATH = path.resolve(__dirname, '../node_modules/sql.js/dist/sql-wasm.wasm');
+
+const WASM_CANDIDATES = [
+  path.resolve(__dirname, '../node_modules/sql.js/dist/sql-wasm.wasm'),
+  path.resolve(__dirname, '../../seed-ts/node_modules/sql.js/dist/sql-wasm.wasm'),
+];
+
+const WASM_PATH = WASM_CANDIDATES.find((candidatePath) => fs.existsSync(candidatePath));
+if (!WASM_PATH) {
+  throw new Error(`sql-wasm.wasm not found. candidates=${WASM_CANDIDATES.join(', ')}`);
+}
 
 // ── Patch fetch() for Node.js file system access ──
 const originalFetch = globalThis.fetch;
@@ -39,7 +48,10 @@ const birth = { year: 1986, month: 4, day: 19, hour: 5, minute: 45, gender: 'mal
 
 const engine = new SpringEngine();
 const repos = [(engine as any).hanjaRepo, (engine as any).fourFrameRepo];
-for (const r of repos) if (r) (r as any).wasmBinaryUrl = WASM_PATH;
+for (const repo of repos) {
+  if (!repo) continue;
+  (repo as any).wasmUrl = WASM_PATH;
+}
 
 let pass = 0;
 let fail = 0;
