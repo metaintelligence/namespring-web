@@ -17,7 +17,7 @@ import { HangulCalculator } from '../../name-ts/src/calculator/hangul.js';
 import { HanjaCalculator } from '../../name-ts/src/calculator/hanja.js';
 import { FrameCalculator } from '../../name-ts/src/calculator/frame.js';
 import { evaluateName, type EvalContext, type EvaluationResult } from '../../name-ts/src/calculator/evaluator.js';
-import { type ElementKey } from '../../name-ts/src/calculator/scoring.js';
+import { type ElementKey, bucketFromFortune } from '../../name-ts/src/calculator/scoring.js';
 import { FourFrameOptimizer } from '../../name-ts/src/calculator/search.js';
 import { makeFallbackEntry, buildInterpretation, parseJamoFilter, type JamoFilter } from '../../name-ts/src/utils/index.js';
 import type { SajuOutputSummary } from './types.js';
@@ -260,11 +260,12 @@ export class SpringEngine {
       strokeSum: f.strokeSum,
       element: f.energy?.element.english ?? '',
       polarity: f.energy?.polarity.english ?? '',
-      luckyLevel: f.entry ? (Number.parseInt(f.entry.lucky_level ?? '0', 10) || 0) : 0,
+      luckyLevel: bucketFromFortune(this.luckyMap.get(f.strokeSum) ?? ''),
       meaning: f.entry ?? null,
     }));
 
     const frameAnalysis = frame.getAnalysis();
+    const luckScore = roundScore(categoryMap.FOURFRAME_LUCK?.score ?? 0);
 
     return {
       name: {
@@ -285,7 +286,7 @@ export class SpringEngine {
         fourFrame: {
           frames: enrichedFrames,
           elementScore: frameAnalysis.data.elementScore,
-          luckScore: frame.luckScore,
+          luckScore,
         },
       },
       interpretation: buildInterpretation(evalResult),

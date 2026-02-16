@@ -1,4 +1,5 @@
 import type { HangulAnalysis, HanjaAnalysis, FourFrameAnalysis } from '../../name-ts/src/model/types.js';
+import type { FourframeMeaningEntry } from '../../name-ts/src/database/fourframe-repository.js';
 import type { ElementKey } from '../../name-ts/src/calculator/scoring.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -297,7 +298,7 @@ export interface NamingReportFrame {
   readonly element: string;
   readonly polarity: string;
   readonly luckyLevel: number;
-  readonly meaning: Record<string, unknown> | null;
+  readonly meaning: FourframeMeaningEntry | null;
 }
 
 /** Four-frame analysis with enriched frame data. */

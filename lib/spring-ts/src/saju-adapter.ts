@@ -90,13 +90,27 @@ let sajuModule: SajuModule | null = null;
 
 async function loadSajuModule(): Promise<SajuModule | null> {
   if (sajuModule) return sajuModule;
-  try {
-    sajuModule = await (Function('p', 'return import(p)')(SAJU_MODULE_PATH)) as SajuModule;
-    return sajuModule;
-  } catch (err: any) {
-    console.warn('[spring-ts] saju-ts 모듈 로드 실패. 사주 분석이 비활성화됩니다:', err?.message);
-    return null;
+
+  // Try the configured path first, then fall back to dist/ (built output).
+  const candidates = [
+    SAJU_MODULE_PATH,
+    SAJU_MODULE_PATH.replace('/src/', '/dist/'),
+  ];
+
+  for (const modulePath of candidates) {
+    try {
+      sajuModule = await (Function('p', 'return import(p)')(modulePath)) as SajuModule;
+      return sajuModule;
+    } catch {
+      // try next candidate
+    }
   }
+
+  console.warn(
+    '[spring-ts] saju-ts 모듈 로드 실패. 사주 분석이 비활성화됩니다.',
+    `시도한 경로: ${candidates.join(', ')}`,
+  );
+  return null;
 }
 
 // ---------------------------------------------------------------------------
