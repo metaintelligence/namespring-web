@@ -4,7 +4,7 @@ import { sha256Hex } from '../utils/hash.js';
 import { fromBase64, toBase64 } from '../utils/base64.js';
 // NOTE: fflate is a tiny pure-JS zip implementation.
 // We only use the synchronous API to keep the engine deterministic.
-import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
+import { strFromU8, strToU8, unzipSync, zipSync } from '../vendor/fflate.js';
 function jsonFile(path, value, space) {
     // UTF-8 encode (default). Using latin1 would corrupt Korean/Hanja.
     return strToU8(stableStringify(value, space));
