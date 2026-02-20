@@ -281,7 +281,8 @@ function ohaengKoLabel(code) {
 }
 function gyeokgukKoLabel(code) {
     const normalized = String(code ?? '').trim().toUpperCase();
-    return GYEOKGUK_KO_LABEL[normalized] ?? (normalized || '-');
+    const canonical = TEN_GOD_ALIASES[normalized] ?? normalized;
+    return GYEOKGUK_KO_LABEL[canonical] ?? GYEOKGUK_KO_LABEL[normalized] ?? (normalized || '-');
 }
 function buildYongshinReasoning(rank, entry, topElement) {
     const primaryLabel = ohaengKoLabel(entry.element);
