@@ -1,1 +1,0 @@
-{"version":3,"file":"CheonganRelationAnalyzer.d.ts","sourceRoot":"","sources":["../../../src/engine/analysis/CheonganRelationAnalyzer.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,SAAS,EAAE,MAAM,2BAA2B,CAAC;AACtD,OAAO,EAAE,mBAAmB,EAAwB,MAAM,2BAA2B,CAAC;AAEtF,qBAAa,wBAAwB;IACjC,OAAO,CAAC,OAAO,EAAE,SAAS,GAAG,mBAAmB,EAAE;CAmDrD"}

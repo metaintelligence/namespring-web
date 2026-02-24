@@ -1,1 +1,0 @@
-{"version":3,"file":"RuleCitationFactory.d.ts","sourceRoot":"","sources":["../../src/interpretation/RuleCitationFactory.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,eAAe,EAAE,MAAM,8BAA8B,CAAC;AAE/D,OAAO,KAAK,EAAE,YAAY,EAAE,MAAM,2BAA2B,CAAC;AAE9D,wBAAgB,sBAAsB,CACpC,OAAO,EAAE,eAAe,GAAG,SAAS,eAAe,EAAE,EACrD,KAAK,EAAE,MAAM,EACb,IAAI,GAAE,MAAW,EACjB,UAAU,GAAE,MAAU,GACrB,YAAY,CAOd"}
